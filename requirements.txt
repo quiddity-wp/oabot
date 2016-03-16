@@ -1,4 +1,3 @@
 wikiciteparser
 #pywikibot
 requests
-json
