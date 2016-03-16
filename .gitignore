@@ -1,0 +1,9 @@
+# Python
+*.pyc
+.virtualenv
+build/
+dist/
+*.egg-info/
+# Wikibot
+throttle.ctrl
+apicache/

@@ -1,0 +1,4 @@
+wikiciteparser
+pywikibot
+requests
+json
