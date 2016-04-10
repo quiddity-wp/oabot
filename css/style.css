@@ -1,0 +1,66 @@
+table {
+    width: 100%;
+}
+table {
+    table-layout: fixed;
+}
+tr {
+    max-width: 100%;
+}
+td {
+    width: 45%;
+    word-wrap: break-word;
+    font-family: monospace;
+    padding-left: 3px;
+    vertical-align: top;
+    line-height: 1.3em;
+    background-color: #F9F9F9;
+}
+colgroup {
+    border: 1px solid #BBB;
+}
+tbody {
+    border-top: 20px solid white;
+}
+.diff_header, .diff_next {
+    text-align: right;
+    padding-right: 3px;
+}
+
+.diff_header {
+    width: 35px;
+    background-color: #eee;
+}   
+ .diff_next {
+    padding-left: 20px;
+    width: 20px;
+    background-color: #fff;
+}
+.diff_add {
+    background-color: #ffb3b3;
+}
+pre {
+    line-height: 1.3em;
+    background-color: #F9F9F9;
+    border: 1px solid #DDD;
+    white-space: pre-wrap;
+    padding: 1em;
+}
+li pre {
+    width: 90%;
+}   
+.template_param {
+    font-family: monospace;
+    background-color:#F9F9F9;
+    border: 1px solid #DDD;
+    border-radius: 2px;
+    padding: 1px 4px;
+}
+.template_param a {
+    color: black;
+    text-decoration: underline;
+}
+body {
+    font-family: "Trebuchet MS",sans-serif;
+    padding-left: 50px;
+}
