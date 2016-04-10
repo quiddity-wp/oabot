@@ -4,7 +4,8 @@ Wikipedia OABOT proof of concept
 This scripts looks for OA versions of references in Wikipedia articles.
 
 Usage:
-* Install dependencies with `pip install -r requirements.py`
+* Install dependencies with `pip install -r requirements.txt`
+* [Install pywikibot](https://www.mediawiki.org/wiki/Manual:Pywikibot/Installation) (unfortunately it's not in pip)
 * Run the script on a Wikipedia article, for instance [Reverse mathematics](http://en.wikipedia.org/wiki/Reverse_mathematics):
   `python poc.py "Reverse mathematics"`
 
@@ -27,3 +28,6 @@ Here is what you get:
 
     
 
+For each reference, the script outputs:
+* a parsed version of the reference, as a python dict
+* an URL (or None), where Dissemin thinks a full text is available for this reference.
