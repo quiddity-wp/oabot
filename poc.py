@@ -16,8 +16,6 @@ template_arg_mappings = {
     'pmc': re.compile(r'https?://www\.ncbi\.nlm\.nih\.gov/pmc/articles/PMC([^/]*)/?'),
     }
 
-site = pywikibot.Site()
-
 def get_oa_link(reference):
     doi = reference.get('ID_list', {}).get('DOI')
     title = reference.get('Title')
@@ -33,8 +31,6 @@ def get_oa_link(reference):
     
     resp = req.json()
     return resp.get('paper', {}).get('pdf_url')
-
-page_name = sys.argv[1]
 
 def add_oa_links_in_references(text):
     wikicode = mwparserfromhell.parse(text)
@@ -82,12 +78,31 @@ def make_diff(old, new):
     html = html.replace(' nowrap="nowrap"','')
     return html
 
+def get_text(page, max_hops=3):
+    try:
+        text = page.get()
+        return text, page.title()
+    except pywikibot.IsRedirectPage as e:
+        if max_hops:
+            return get_text(page.getRedirectTarget())
+        else:
+            raise e
+
 def render_template(page_name):
+    site = pywikibot.Site()
+
     with open('templates/skeleton.html','r') as f:
         skeleton = f.read()
 
-    page = pywikibot.Page(site, page_name)
-    text = page.get()
+    try:
+        page = pywikibot.Page(site, page_name)
+        text, page_name = get_text(page)
+    except pywikibot.exceptions.Error as e:
+        html = "<p><strong>Error:</strong> "+unicode(e)+"</p>"
+        html += '<p><a href="/">Back</a></p>'
+        skeleton = skeleton.replace('OABOT_BODY_GOES_HERE', html)
+        skeleton = skeleton.replace('OABOT_PAGE_NAME', '')
+        return skeleton
 
     new_wikicode, changed_templates, nb_templates = add_oa_links_in_references(text)
     with codecs.open('new_wikicode', 'w', 'utf-8') as f:
@@ -128,7 +143,8 @@ def render_template(page_name):
 
     return skeleton
 
-
-print render_template(page_name).encode('utf-8')
+if __name__ == '__main__':
+    page_name = sys.argv[1]
+    print render_template(page_name).encode('utf-8')
 
 
