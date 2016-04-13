@@ -97,9 +97,8 @@ def render_template(page_name):
     try:
         page = pywikibot.Page(site, page_name)
         text, page_name = get_text(page)
-    except pywikibot.exceptions.Error as e:
+    except (pywikibot.exceptions.Error, ValueError) as e:
         html = "<p><strong>Error:</strong> "+unicode(e)+"</p>"
-        html += '<p><a href="/">Back</a></p>'
         skeleton = skeleton.replace('OABOT_BODY_GOES_HERE', html)
         skeleton = skeleton.replace('OABOT_PAGE_NAME', '')
         return skeleton
