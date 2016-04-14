@@ -7,15 +7,19 @@
     <body>
         <h2>OAbot</h2>
         <p>
-            <form action="/process" method="get">
+            <form action="/oabot/process" method="get">
                 <label for="name">Page name: </label>
                 <input type="text" name="name" id="nameInput" />
                 <input type="submit" value="Process" />
             </form>
         </p>
 
-        <p>
+        <p id="description">
         This scripts looks for open access versions of references in Wikipedia articles. If no URL is provided in the citation template, it adds one that points to an open access repository where the reference is available (if we can find one). In the special cases of arXiv or PubMedCentral, it uses the appropriate citation parameters.
         </p>
+
+	<p><a href="https://github.com/wetneb/oabot">GitHub project</a> - 
+           run by <a href="https://en.wikipedia.org/wiki/User_talk:Pintoch">Pintoch</a>
+	 </p>
     </body>
 </html>

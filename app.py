@@ -1,5 +1,5 @@
 # -*- encoding: utf-8 -*-
-from bottle import route, run, static_file, request
+from bottle import route, run, static_file, request, default_app
 from poc import *
 
 @route('/')
@@ -16,5 +16,7 @@ def process():
     tpl = render_template(page_name)
     return tpl
 
-run(host='localhost', port=8000, debug=True)
+if __name__ == '__main__':
+	run(host='localhost', port=8000, debug=True)
 
+app = application = default_app()

@@ -5,10 +5,19 @@
         <link rel="stylesheet" href="css/style.css" />
     </head>
     <body>
-        <a href="/">&#8592; Back</a>
+        <a href="/oabot/">&#8592; Back</a>
+        <p>
+            <form action="/oabot/process" method="get">
+                <label for="name">Page name: </label>
+                <input type="text" name="name" id="nameInput" value="OABOT_PAGE_NAME" />
+                <input type="submit" value="Process" />
+            </form>
+        </p>
+
+
         OABOT_BODY_GOES_HERE
 
-        <p><a href="/">&#8592; Back</a></p>
+        <p><a href="/oabot/">&#8592; Back</a></p>
         <p><a href="https://github.com/wetneb/oabot">Source code</a></p>
     </body>
 </html>

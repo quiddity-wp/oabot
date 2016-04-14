@@ -10,10 +10,20 @@ from datetime import datetime
 from copy import deepcopy
 from difflib import HtmlDiff
 
+# How to use this dict:
+# - keys are pairs
+#    - the first part (string) indicates the name of the identifier
+#    - the second part (bool) indicates whether it is
+#	* a template argument (as in {{cite journal|doi=10.1007/test}})
+#	* a template in the id= argument (as in {{cite journal|id={{citeseerx|10.1.1.104.7535}})
+# - the values are the regular expressions on the URLs that trigger these mappings
+#   The first parenthesis-enclosed group in these regular expressions should contain the id
+
 template_arg_mappings = {
-    'doi': re.compile(r'https?://dx\.doi\.org/([^ ]*)'),
-    'arxiv': re.compile(r'https?://arxiv\.org/abs/(.*)'),
-    'pmc': re.compile(r'https?://www\.ncbi\.nlm\.nih\.gov/pmc/articles/PMC([^/]*)/?'),
+    ('doi',True): re.compile(r'https?://dx\.doi\.org/([^ ]*)'),
+    ('arxiv',True): re.compile(r'https?://arxiv\.org/abs/(.*)'),
+    ('pmc',True): re.compile(r'https?://www\.ncbi\.nlm\.nih\.gov/pmc/articles/PMC([^/]*)/?'),
+    ('citeseerx',False): re.compile(r'https?://citeseerx\.ist\.psu\.edu/viewdoc/summary\?doi=(.*)'),
     }
 
 def get_oa_link(reference):
@@ -28,7 +38,7 @@ def get_oa_link(reference):
         'date':date,
         'doi':doi,
         })
-    
+
     resp = req.json()
     return resp.get('paper', {}).get('pdf_url')
 
@@ -46,20 +56,23 @@ def add_oa_links_in_references(text):
             if not link:
                 continue
 
-            doi_prefix = 'http://dx.doi.org/'
-            arxiv_prefix = 'http://arxiv.org/abs/'
             change = {}
 
             argument_found = False
-            for arg, regex in template_arg_mappings.items():
+            for (name, is_arg), regex in template_arg_mappings.items():
                 match = regex.match(link)
                 if not match:
                     continue
                 argument_found = True
-                if not template.has(arg, ignore_empty=True):
-                    template.add(arg, match.group(1))
-                    change[arg] = (match.group(1),link)
+                if is_arg and not template.has(name, ignore_empty=True):
+                    template.add(name, match.group(1))
+                    change[name] = (match.group(1),link)
                     break
+		elif not is_arg and not template.has('id', ignore_empty=True):
+		    val = '{{%s|%s}}' % (name,match.group(1))
+		    template.add('id', val)
+		    change['id'] = (val,link)
+		    break
 
             if not argument_found and not template.has('url', ignore_empty=True):
                 template.add('url', link)
@@ -80,13 +93,28 @@ def make_diff(old, new):
 
 def get_text(page, max_hops=3):
     try:
-        text = page.get()
+        text = page.get(throttle=False)
         return text, page.title()
     except pywikibot.IsRedirectPage as e:
         if max_hops:
             return get_text(page.getRedirectTarget())
         else:
             raise e
+
+def get_page_over_api(page_name):
+    r = requests.get('https://en.wikipedia.org/w/api.php', params={
+	'action':'query',
+	'titles':page_name,
+	'prop':'revisions',
+	'rvprop':'content',
+	'format':'json',})
+    js = r.json()
+    page = js.get('query',{}).get('pages',{}).values()[0]
+    pagid = page.get('pageid', -1)
+    if pagid == -1:
+	raise ValueError("Invalid page.")
+    text = page.get('revisions',[{}])[0]['*']
+    return text
 
 def render_template(page_name):
     site = pywikibot.Site()
@@ -95,8 +123,9 @@ def render_template(page_name):
         skeleton = f.read()
 
     try:
-        page = pywikibot.Page(site, page_name)
-        text, page_name = get_text(page)
+        #page = pywikibot.Page(site, page_name)
+        #text, page_name = get_text(page)
+	text = get_page_over_api(page_name)
     except (pywikibot.exceptions.Error, ValueError) as e:
         html = "<p><strong>Error:</strong> "+unicode(e)+"</p>"
         skeleton = skeleton.replace('OABOT_BODY_GOES_HERE', html)
@@ -107,12 +136,9 @@ def render_template(page_name):
     with codecs.open('new_wikicode', 'w', 'utf-8') as f:
         f.write(new_wikicode)
 
-    page_url = 'https:'+page.permalink()
-    page_revision = page.latest_revision_id
-    page_rev_url = 'https:'+page.permalink(page_revision)
+    page_url = 'https://en.wikipedia.org/wiki/'+page_name #'https:'+page.permalink()
 
     html = '<h2>Results for page <a href="%s">OABOT_PAGE_NAME</a></h2>\n' % page_url
-    html += '<p>Revision: <a href="%s">#%d</a></p>\n' % (page_rev_url,page_revision)
     html += '<p>Processed: %s</p>\n' % (datetime.utcnow().isoformat())
     html += '<p>Citation templates found: %d</p>\n' % nb_templates
 

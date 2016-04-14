@@ -63,4 +63,8 @@ li pre {
 body {
     font-family: "Trebuchet MS",sans-serif;
     padding-left: 50px;
+    padding-top: 10px;
+}
+#description {
+	max-width: 500px;
 }
