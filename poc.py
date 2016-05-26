@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*# -*- encoding: utf-8 -*--
 from wikiciteparser.parser import parse_citation_template
 import pywikibot
 import mwparserfromhell
@@ -10,20 +11,16 @@ from datetime import datetime
 from copy import deepcopy
 from difflib import HtmlDiff
 
-# How to use this dict:
-# - keys are triples
-#    - the first part (string) indicates the name of the identifier
-#    - the second part (bool) indicates whether it is
-#       * a template argument (as in {{cite journal|doi=10.1007/test}})
-#       * a template in the id= argument (as in {{cite journal|id={{citeseerx|10.1.1.104.7535}})
-#    - the third part (list) is a list of alternate places where this
-#      parameter can be found - the bot should not add the parameter if any of these
-#      alternate places are non-empty
-# - the values are the regular expressions on the URLs that trigger these mappings
-#   The first parenthesis-enclosed group in these regular expressions should contain the id
 
+# See template_arg_mappings below for a list of examples of this class
 class ArgumentMapping(object):
     def __init__(self, name, regex, is_id=False, alternate_names=[]):
+        """
+        :param name: the parameter slot in which the identifier is stored (e.g. arxiv)
+        :para is_id: if this parameter is true, we will actually store the identifier in |id={{name| … }} instead of |name.
+        :par  regex: the regular expression extract on the URLs that trigger this mapping. The first parenthesis-enclosed group in these regular expressions should contain the id.
+        :para alternate_names: alternate parameter slots to look out for - we will not add any identifier if one of them is non-empty.
+        """
         self.name = name
         self.regex = re.compile(regex)
         self.is_id = is_id
@@ -47,8 +44,6 @@ class ArgumentMapping(object):
         if not match:
             return None
         return match.group(1)
-
-
 
 template_arg_mappings = [
     ArgumentMapping('doi', r'https?://dx\.doi\.org/([^ ]*)'),
@@ -87,17 +82,26 @@ def get_oa_link(reference):
 def add_oa_links_in_references(text):
     wikicode = mwparserfromhell.parse(text)
     changed_templates = []
-    nb_templates = 0
+
+    stats = {
+        'nb_templates':0, # total number of templates processed
+        'oa_found':0, # hits from the API
+        'changed':0, # actual changes on the templates
+        'already_present':0, # no change because already present
+        }
 
     for template in wikicode.filter_templates():
         orig_template = deepcopy(template)
         reference = parse_citation_template(template)
         if reference:
-            nb_templates += 1
+            stats['nb_templates'] += 1
             link = get_oa_link(reference)
             if not link:
                 changed_templates.append((orig_template,None))
                 continue
+
+            # We found an OA link!
+            stats['oa_found'] += 1
 
             change = {}
 
@@ -115,9 +119,11 @@ def add_oa_links_in_references(text):
                 non_empty = argmap.present(template)           
                 if non_empty:
                     change['new_'+argmap.name] = (match,link)
+                    stats['already_present'] += 1
                     break
 
                 # If the parameter is not present yet, add it
+                stats['changed'] += 1
                 if not argmap.is_id:
                     template.add(argmap.name, match)
                     change[argmap.name] = (match,link)
@@ -129,7 +135,7 @@ def add_oa_links_in_references(text):
 
             changed_templates.append((orig_template, change))
     
-    return unicode(wikicode), changed_templates, nb_templates
+    return unicode(wikicode), changed_templates, stats
 
 def make_diff(old, new):
     df = HtmlDiff()
@@ -180,7 +186,7 @@ def render_template(page_name, this_url='#'):
         skeleton = skeleton.replace('OABOT_PAGE_NAME', '')
         return skeleton
 
-    new_wikicode, changed_templates, nb_templates = add_oa_links_in_references(text)
+    new_wikicode, changed_templates, stats = add_oa_links_in_references(text)
     with codecs.open('new_wikicode', 'w', 'utf-8') as f:
         f.write(new_wikicode)
 
@@ -188,15 +194,16 @@ def render_template(page_name, this_url='#'):
 
     html = '<h2>Results for page <a href="%s">OABOT_PAGE_NAME</a></h2>\n' % page_url
     html += '<p>Processed: %s (<a href="%s&refresh=true">refresh</a>)</p>\n' % (datetime.utcnow().isoformat(), this_url)
-    html += '<p>Citation templates found: %d</p>\n' % nb_templates
 
-#    if not changed_templates:
-#        html += '<p><strong>No changes were made for this page.</strong></p>\n'
-#    else:
+    # Print stats
+    html += '<p>Citation templates found: %s</p>\n' % stats['nb_templates']
+    html += '<p>Hits from the APIs: %s</p>\n' % stats['oa_found']
+    html += '<p>Templates changed: %s</p>\n' % stats['changed']
+    html += '<p>Templates not changed because the parameter was already present: %s</p>\n' % stats['already_present']
 
-   # Render changes
+    # Render changes
 
-    html += '<h3>Templates changed</h3>\n' # (%d)</h3>\n' % len(changed_templates)
+    html += '<h3>Template details</h3>\n' # (%d)</h3>\n' % len(changed_templates)
     html += '<ol>\n'
     for template, change in changed_templates:
         html += '<li>'
