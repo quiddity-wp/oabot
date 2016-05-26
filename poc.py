@@ -149,34 +149,35 @@ def render_template(page_name, this_url='#'):
     html += '<p>Processed: %s (<a href="%s&refresh=true">refresh</a>)</p>\n' % (datetime.utcnow().isoformat(), this_url)
     html += '<p>Citation templates found: %d</p>\n' % nb_templates
 
-    if not changed_templates:
-        html += '<p><strong>No changes were made for this page.</strong></p>\n'
-    else:
-        # Render changes
+#    if not changed_templates:
+#        html += '<p><strong>No changes were made for this page.</strong></p>\n'
+#    else:
 
-        html += '<h3>Templates changed</h3>\n' # (%d)</h3>\n' % len(changed_templates)
-        html += '<ol>\n'
-        for template, change in changed_templates:
-            html += '<li>'
-            html += '<pre>'+unicode(template)+'</pre>\n'
-            if change == None:
-                html += '<strong>No OA version found.</strong>'
-                continue
-            html += '<strong>Added:</strong>\n<ul>\n'
-            for key, (val,link) in change.items():
-                if key.startswith('new_'):
-                    key = key[4:]
-                    html += '<li>Already present: <span class="template_param">%s=' % key
-                else:
-                    html += '<li><span class="template_param">%s=' % key
-                html += '<a href="%s">%s</a>' % (link,val)
-                html += '</span></li>\n'
-            html += '</ul>\n</li>\n'
-        html += '</ol>\n'
+   # Render changes
 
-        # Render diff
-        html += '<h3>Wikicode diff</h3>\n'
-        html += make_diff(text, new_wikicode)+'\n'
+    html += '<h3>Templates changed</h3>\n' # (%d)</h3>\n' % len(changed_templates)
+    html += '<ol>\n'
+    for template, change in changed_templates:
+        html += '<li>'
+        html += '<pre>'+unicode(template)+'</pre>\n'
+        if change == None:
+            html += '<strong>No OA version found.</strong>'
+            continue
+        html += '<strong>Added:</strong>\n<ul>\n'
+        for key, (val,link) in change.items():
+            if key.startswith('new_'):
+                key = key[4:]
+                html += '<li>Already present: <span class="template_param">%s=' % key
+            else:
+                html += '<li><span class="template_param">%s=' % key
+            html += '<a href="%s">%s</a>' % (link,val)
+            html += '</span></li>\n'
+        html += '</ul>\n</li>\n'
+    html += '</ol>\n'
+
+    # Render diff
+    html += '<h3>Wikicode diff</h3>\n'
+    html += make_diff(text, new_wikicode)+'\n'
 
     skeleton = skeleton.replace('OABOT_BODY_GOES_HERE', html)
     skeleton = skeleton.replace('OABOT_PAGE_NAME', page_name)
