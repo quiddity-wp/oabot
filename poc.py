@@ -154,7 +154,7 @@ def render_template(page_name, this_url='#'):
     else:
         # Render changes
 
-        html += '<h3>Templates changed\n' # (%d)</h3>\n' % len(changed_templates)
+        html += '<h3>Templates changed</h3>\n' # (%d)</h3>\n' % len(changed_templates)
         html += '<ol>\n'
         for template, change in changed_templates:
             html += '<li>'
