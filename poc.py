@@ -40,7 +40,16 @@ def get_oa_link(reference):
         })
 
     resp = req.json()
-    return resp.get('paper', {}).get('pdf_url')
+
+    oa_url = resp.get('paper', {}).get('pdf_url')
+
+    # Try with DOAI if the dissemin API did not return a full text link
+    if oa_url is None and doi:
+        r = requests.head('http://doai.io/'+doi)
+        if 'location' in r.headers and not 'doi.org/10.' in r.headers['location']:
+            oa_url = r.headers['location']
+
+    return oa_url
 
 def add_oa_links_in_references(text):
     wikicode = mwparserfromhell.parse(text)
