@@ -164,8 +164,9 @@ def render_template(page_name, this_url='#'):
                 continue
             html += '<strong>Added:</strong>\n<ul>\n'
             for key, (val,link) in change.items():
-                if val.startswith('new_'):
+                if key.startswith('new_'):
                     html += '<li>Already present: <span class="template_param">%s=' % key
+                    key = key[4:]
                 else:
                     html += '<li><span class="template_param">%s=' % key
                 html += '<a href="%s">%s</a>' % (link,val)
