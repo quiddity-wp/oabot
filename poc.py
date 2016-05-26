@@ -11,20 +11,53 @@ from copy import deepcopy
 from difflib import HtmlDiff
 
 # How to use this dict:
-# - keys are pairs
+# - keys are triples
 #    - the first part (string) indicates the name of the identifier
 #    - the second part (bool) indicates whether it is
 #       * a template argument (as in {{cite journal|doi=10.1007/test}})
 #       * a template in the id= argument (as in {{cite journal|id={{citeseerx|10.1.1.104.7535}})
+#    - the third part (list) is a list of alternate places where this
+#      parameter can be found - the bot should not add the parameter if any of these
+#      alternate places are non-empty
 # - the values are the regular expressions on the URLs that trigger these mappings
 #   The first parenthesis-enclosed group in these regular expressions should contain the id
 
-template_arg_mappings = {
-    ('doi',True): re.compile(r'https?://dx\.doi\.org/([^ ]*)'),
-    ('arxiv',True): re.compile(r'https?://arxiv\.org/abs/(.*)'),
-    ('pmc',True): re.compile(r'https?://www\.ncbi\.nlm\.nih\.gov/pmc/articles/PMC([^/]*)/?'),
-    ('citeseerx',False): re.compile(r'https?://citeseerx\.ist\.psu\.edu/viewdoc/summary\?doi=(.*)'),
-    }
+class ArgumentMapping(object):
+    def __init__(self, name, regex, is_id=False, alternate_names=[]):
+        self.name = name
+        self.regex = re.compile(regex)
+        self.is_id = is_id
+        self.alternate_names = alternate_names
+
+    def present(self, template):
+        """
+        Is this argument already present in the template?
+        """
+        # Check if the parameter is non-empty (or any alternate places)
+        non_empty = (not self.is_id and template.has(self.name, ignore_empty=True))
+        non_empty = non_empty or (self.is_id and template.has('id', ignore_empty=True))
+        non_empty = non_empty or any([template.has(aid, ignore_empty=True) for aid in self.alternate_names])
+        return non_empty
+
+    def extract(self, url):
+        """
+        Extract the parameter value from the URL, or None if it does not match
+        """
+        match = self.regex.match(url)
+        if not match:
+            return None
+        return match.group(1)
+
+
+
+template_arg_mappings = [
+    ArgumentMapping('doi', r'https?://dx\.doi\.org/([^ ]*)'),
+    ArgumentMapping('hdl', r'https?://hdl\.handle\.net/([^ ]*)'),
+    ArgumentMapping('arxiv', r'https?://arxiv\.org/abs/(.*)', alternate_names=['eprint']),
+    ArgumentMapping('pmc', r'https?://www\.ncbi\.nlm\.nih\.gov/pmc/articles/PMC([^/]*)/?'),
+    ArgumentMapping('citeseerx', r'https?://citeseerx\.ist\.psu\.edu/viewdoc/summary\?doi=(.*)', is_id=True),
+    ArgumentMapping('url', r'(.*)'),
+    ]
 
 def get_oa_link(reference):
     doi = reference.get('ID_list', {}).get('DOI')
@@ -69,32 +102,31 @@ def add_oa_links_in_references(text):
             change = {}
 
             argument_found = False
-            for (name, is_arg), regex in template_arg_mappings.items():
-                match = regex.match(link)
-                if not match or not match.group(1):
+            for argmap in template_arg_mappings:
+                # Did the link we have got match that argument place?
+                match = argmap.extract(link)
+                if not match:
                     continue
+
                 argument_found = True
-                if is_arg:
-                    if not template.has(name, ignore_empty=True):
-                        template.add(name, match.group(1))
-                        change[name] = (match.group(1),link)
-                        break
-                    else:
-                        change['new_'+name] = (match.group(1),link)
-                elif not is_arg:
-                    if not template.has('id', ignore_empty=True):
-                        val = '{{%s|%s}}' % (name,match.group(1))
-                        template.add('id', val)
-                        change['id'] = (val,link)
-                        break
-                    else:
-                        change['new_'+name] = (match.group(1),link)
 
-            if not argument_found and not template.has('url', ignore_empty=True):
-                template.add('url', link)
-                change['url'] = (link,link)
+                # If this parameter is already present in the template,
+                # don't change anything
+                non_empty = argmap.present(template)           
+                if non_empty:
+                    change['new_'+argmap.name] = (match,link)
+                    break
 
-            #if change:
+                # If the parameter is not present yet, add it
+                if not argmap.is_id:
+                    template.add(argmap.name, match)
+                    change[argmap.name] = (match,link)
+                else:
+                    val = '{{%s|%s}}' % (argmap.name,match)
+                    template.add('id', val)
+                    change['id'] = (val,link)
+                break
+
             changed_templates.append((orig_template, change))
     
     return unicode(wikicode), changed_templates, nb_templates
@@ -169,7 +201,8 @@ def render_template(page_name, this_url='#'):
     for template, change in changed_templates:
         html += '<li>'
         html += '<pre>'+unicode(template)+'</pre>\n'
-        if change == None:
+        if not change:
+
             html += '<strong>No OA version found.</strong>'
             continue
         html += '<strong>Added:</strong>\n<ul>\n'
