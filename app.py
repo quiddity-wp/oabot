@@ -1,10 +1,18 @@
 # -*- encoding: utf-8 -*-
 from bottle import route, run, static_file, request, default_app
 from poc import *
+from poc import OABOT_APP_MOUNT_POINT
+
 
 @route('/')
 def home():
-    return static_file('home.html', root='templates/')
+    with open('templates/home.html','r') as f:
+        homepage = f.read()
+
+    homepage = homepage.replace('OABOT_APP_MOUNT_POINT', OABOT_APP_MOUNT_POINT)
+
+    return homepage
+
 
 @route('/css/<fname>')
 def css(fname):
