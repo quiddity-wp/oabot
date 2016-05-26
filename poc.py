@@ -196,10 +196,10 @@ def render_template(page_name, this_url='#'):
     html += '<p>Processed: %s (<a href="%s&refresh=true">refresh</a>)</p>\n' % (datetime.utcnow().isoformat(), this_url)
 
     # Print stats
-    html += '<p>Citation templates found: %s</p>\n' % stats['nb_templates']
-    html += '<p>Hits from the APIs: %s</p>\n' % stats['oa_found']
-    html += '<p>Templates changed: %s</p>\n' % stats['changed']
-    html += '<p>Templates not changed because the parameter was already present: %s</p>\n' % stats['already_present']
+    html += '<p>Citations changed: %s</p>\n' % stats['changed']
+    html += '<p>Citations checked: %s</p>\n' % stats['nb_templates']
+    html += '<p>Free versions found: %s</p>\n' % stats['oa_found']
+    html += '<p>Citations unchanged (link already present): %s</p>\n' % stats['already_present']
 
     # Render changes
 
