@@ -220,13 +220,13 @@ def render_template(page_name, this_url='#'):
 
             html += '<strong>No OA version found.</strong>'
             continue
-        html += '<strong>Added:</strong>\n<ul>\n'
+        html += '<ul>\n'
         for key, (val,link) in change.items():
             if key.startswith('new_'):
                 key = key[4:]
                 html += '<li>Already present: <span class="template_param">%s=' % key
             else:
-                html += '<li><span class="template_param">%s=' % key
+                html += '<strong>Added:</strong>\n<li><span class="template_param">%s=' % key
             html += '<a href="%s">%s</a>' % (link,val)
             html += '</span></li>\n'
         html += '</ul>\n</li>\n'
