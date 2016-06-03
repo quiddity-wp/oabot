@@ -36,7 +36,7 @@ tbody {
     width: 20px;
     background-color: #fff;
 }
-.diff_add {
+.diff_add, .diff_chg {
     background-color: #ffb3b3;
 }
 pre {
