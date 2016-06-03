@@ -7,3 +7,5 @@ dist/
 # Wikibot
 throttle.ctrl
 apicache/
+# Cache
+cache/*.html
