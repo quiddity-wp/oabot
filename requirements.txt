@@ -1,3 +1,4 @@
 wikiciteparser
 #pywikibot
 requests
+docopt

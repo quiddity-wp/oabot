@@ -10,6 +10,14 @@ import re
 from datetime import datetime
 from copy import deepcopy
 from difflib import HtmlDiff
+import os
+
+# App mount point, if the environment variable 'OABOT_DEV' is defined then
+# mount the application on '/', otherwise mount it under '/oabot'
+OABOT_APP_MOUNT_POINT = '/oabot'
+if os.environ.get('OABOT_DEV', None) is not None:
+    # Mount point is '/'
+    OABOT_APP_MOUNT_POINT = ''
 
 
 # See template_arg_mappings below for a list of examples of this class
@@ -212,13 +220,13 @@ def render_template(page_name, this_url='#'):
 
             html += '<strong>No OA version found.</strong>'
             continue
-        html += '<strong>Added:</strong>\n<ul>\n'
+        html += '<ul>\n'
         for key, (val,link) in change.items():
             if key.startswith('new_'):
                 key = key[4:]
                 html += '<li>Already present: <span class="template_param">%s=' % key
             else:
-                html += '<li><span class="template_param">%s=' % key
+                html += '<strong>Added:</strong>\n<li><span class="template_param">%s=' % key
             html += '<a href="%s">%s</a>' % (link,val)
             html += '</span></li>\n'
         html += '</ul>\n</li>\n'
@@ -228,6 +236,7 @@ def render_template(page_name, this_url='#'):
     html += '<h3>Wikicode diff</h3>\n'
     html += make_diff(text, new_wikicode)+'\n'
 
+    skeleton = skeleton.replace('OABOT_APP_MOUNT_POINT', OABOT_APP_MOUNT_POINT)
     skeleton = skeleton.replace('OABOT_BODY_GOES_HERE', html)
     skeleton = skeleton.replace('OABOT_PAGE_NAME', page_name)
 
@@ -236,6 +245,3 @@ def render_template(page_name, this_url='#'):
 if __name__ == '__main__':
     page_name = sys.argv[1]
     print render_template(page_name).encode('utf-8')
-
-
-
