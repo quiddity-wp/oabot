@@ -20,6 +20,12 @@ if os.environ.get('OABOT_DEV', None) is not None:
     OABOT_APP_MOUNT_POINT = ''
 
 
+##############
+# Edit logic #
+##############
+
+# This section defines the behaviour of the bot.
+
 # See template_arg_mappings below for a list of examples of this class
 class ArgumentMapping(object):
     def __init__(self, name, regex, is_id=False, alternate_names=[]):
@@ -62,7 +68,14 @@ template_arg_mappings = [
     ArgumentMapping('url', r'(.*)'),
     ]
 
+# the bot will not make any changes to these templates
+excluded_templates = ['cite arxiv']
+
 def get_oa_link(reference):
+    """
+    Given a citation template (as parsed by wikiciteparser),
+    return a link to a full text for this citation (or None).
+    """
     doi = reference.get('ID_list', {}).get('DOI')
     title = reference.get('Title')
     authors = reference.get('Authors', [])
@@ -88,6 +101,13 @@ def get_oa_link(reference):
     return oa_url
 
 def add_oa_links_in_references(text):
+    """
+    Main function of the bot.
+    
+    :param text: the wikicode of the page to edit
+    :returns: a tuple: the new wikicode, the list of changed templates,
+            and edit statistics
+    """
     wikicode = mwparserfromhell.parse(text)
     changed_templates = []
 
@@ -101,7 +121,8 @@ def add_oa_links_in_references(text):
     for template in wikicode.filter_templates():
         orig_template = deepcopy(template)
         reference = parse_citation_template(template)
-        if reference:
+        tpl_name = unicode(template.name).lower().strip()
+        if reference and tpl_name not in excluded_templates:
             stats['nb_templates'] += 1
             link = get_oa_link(reference)
             if not link:
@@ -145,13 +166,6 @@ def add_oa_links_in_references(text):
     
     return unicode(wikicode), changed_templates, stats
 
-def make_diff(old, new):
-    df = HtmlDiff()
-    old_lines = old.splitlines(1)
-    new_lines = new.splitlines(1)
-    html = df.make_table(old_lines, new_lines, context=True)
-    html = html.replace(' nowrap="nowrap"','')
-    return html
 
 def get_text(page, max_hops=3):
     try:
@@ -159,7 +173,7 @@ def get_text(page, max_hops=3):
         return text, page.title()
     except pywikibot.IsRedirectPage as e:
         if max_hops:
-            return get_text(page.getRedirectTarget())
+            return get_text(page.getRedirectTarget(), max_hops=max_hops-1)
         else:
             raise e
 
@@ -177,6 +191,44 @@ def get_page_over_api(page_name):
         raise ValueError("Invalid page.")
     text = page.get('revisions',[{}])[0]['*']
     return text
+
+def perform_edit(page):
+    """
+    Performs the edit on the given page
+    """
+    text = page.get()
+    new_wikicode, changed_templates, stats = add_oa_links_in_references(text)
+
+    if new_wikicode == text:
+        return changed_templates, stats
+
+    page.text = new_wikicode
+    edit_message = 'Added open access links in '
+    if stats['changed'] == 1:
+        edit_message += '1 citation.'
+    else:
+        edit_message += ('%d citations.' % stats['changed'])
+    page.save(edit_message)
+    return changed_templates, stats
+
+##################
+# HTML rendering #
+##################
+
+# This section defines the web interface demonstrating
+# the potential edits of the bot.
+
+def make_diff(old, new):
+    """
+    Render in HTML the diff between two texts
+    """
+    df = HtmlDiff()
+    old_lines = old.splitlines(1)
+    new_lines = new.splitlines(1)
+    html = df.make_table(old_lines, new_lines, context=True)
+    html = html.replace(' nowrap="nowrap"','')
+    return html
+
 
 def render_template(page_name, this_url='#'):
     site = pywikibot.Site()
@@ -244,4 +296,7 @@ def render_template(page_name, this_url='#'):
 
 if __name__ == '__main__':
     page_name = sys.argv[1]
-    print render_template(page_name).encode('utf-8')
+    site = pywikibot.Site()
+    page = pywikibot.Page(site, page_name)
+    changed_templates, stats = perform_edit(page)
+    print "Edit successfully performed"
