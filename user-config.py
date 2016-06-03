@@ -40,7 +40,7 @@ mylang = 'en'
 # The dictionary usernames should contain a username for each site where you
 # have a bot account. If you have a unique username for all languages of a
 # family , you can use '*'
-usernames['wikipedia']['en'] = u'HeresMyUsername'
+usernames['wikipedia']['en'] = u'OAbot'
 
 
 # ############# LOGFILE SETTINGS ##############
@@ -153,7 +153,7 @@ upload_to_commons = False
 # By default, the get_throttle is turned off, and 'maxlag' is used to
 # control the rate of server access.  Set minthrottle to non-zero to use a
 # throttle on read access.
-minthrottle = 0
+minthrottle = 5
 maxthrottle = 60
 
 # Slow down the robot such that it never makes a second page edit within

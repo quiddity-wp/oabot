@@ -1,5 +1,5 @@
-Wikipedia OABOT proof of concept
-================================
+Wikipedia OAbot
+===============
 
 This scripts looks for open access versions of references in Wikipedia articles.
 If no URL is provided in the citation template, it adds one that points to an open access repository where the reference is available (if we can find one). In the special cases of arXiv or PubMedCentral, it uses the appropriate citation parameters. See the examples below.

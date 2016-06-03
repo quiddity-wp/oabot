@@ -17,7 +17,7 @@ __version__ = '0.0.1'
 
 from bottle import route, run, static_file, request, default_app
 from docopt import docopt
-from poc import *
+from main import *
 import os.path
 import md5
 from poc import OABOT_APP_MOUNT_POINT
