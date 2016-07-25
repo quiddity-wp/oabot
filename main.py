@@ -28,17 +28,19 @@ if os.environ.get('OABOT_DEV', None) is not None:
 
 # See template_arg_mappings below for a list of examples of this class
 class ArgumentMapping(object):
-    def __init__(self, name, regex, is_id=False, alternate_names=[]):
+    def __init__(self, name, regex, is_id=False, alternate_names=[], group_id=1):
         """
         :param name: the parameter slot in which the identifier is stored (e.g. arxiv)
         :para is_id: if this parameter is true, we will actually store the identifier in |id={{name| … }} instead of |name.
         :par  regex: the regular expression extract on the URLs that trigger this mapping. The first parenthesis-enclosed group in these regular expressions should contain the id.
         :para alternate_names: alternate parameter slots to look out for - we will not add any identifier if one of them is non-empty.
+        :para group_id: position of the identifier in the regex
         """
         self.name = name
         self.regex = re.compile(regex)
         self.is_id = is_id
         self.alternate_names = alternate_names
+        self.group_id = group_id
 
     def present(self, template):
         """
@@ -57,10 +59,10 @@ class ArgumentMapping(object):
         match = self.regex.match(url)
         if not match:
             return None
-        return match.group(1)
+        return match.group(self.group_id)
 
 template_arg_mappings = [
-    ArgumentMapping('doi', r'https?://(dx\.)?doi\.org/([^ ]*)'),
+    ArgumentMapping('doi', r'https?://(dx\.)?doi\.org/([^ ]*)', group_id=2),
     ArgumentMapping('hdl', r'https?://hdl\.handle\.net/([^ ]*)'),
     ArgumentMapping('arxiv', r'https?://arxiv\.org/abs/(.*)', alternate_names=['eprint']),
     ArgumentMapping('pmc', r'https?://www\.ncbi\.nlm\.nih\.gov/pmc/articles/PMC([^/]*)/?'),
