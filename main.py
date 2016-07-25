@@ -60,7 +60,7 @@ class ArgumentMapping(object):
         return match.group(1)
 
 template_arg_mappings = [
-    ArgumentMapping('doi', r'https?://dx\.doi\.org/([^ ]*)'),
+    ArgumentMapping('doi', r'https?://(dx\.)?doi\.org/([^ ]*)'),
     ArgumentMapping('hdl', r'https?://hdl\.handle\.net/([^ ]*)'),
     ArgumentMapping('arxiv', r'https?://arxiv\.org/abs/(.*)', alternate_names=['eprint']),
     ArgumentMapping('pmc', r'https?://www\.ncbi\.nlm\.nih\.gov/pmc/articles/PMC([^/]*)/?'),
