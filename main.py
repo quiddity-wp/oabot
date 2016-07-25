@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*# -*- encoding: utf-8 -*--
 from wikiciteparser.parser import parse_citation_template
-import pywikibot
+#import pywikibot
 from urllib import urlencode
 import mwparserfromhell
 import requests
@@ -235,12 +235,12 @@ def make_diff(old, new):
 
 
 def render_template(page_name, this_url='#'):
-    site = pywikibot.Site()
 
     with open('templates/skeleton.html','r') as f:
         skeleton = f.read()
 
     try:
+        #site = pywikibot.Site()
         #page = pywikibot.Page(site, page_name)
         #text, page_name = get_text(page)
         text = get_page_over_api(page_name)
