@@ -1,11 +1,13 @@
 # -*- encoding: utf-8 -*# -*- encoding: utf-8 -*--
 from wikiciteparser.parser import parse_citation_template
 import pywikibot
+from urllib import urlencode
 import mwparserfromhell
 import requests
 import json
 import codecs
 import sys
+from unidecode import unidecode
 import re
 from datetime import datetime
 from copy import deepcopy
@@ -271,8 +273,11 @@ def render_template(page_name, this_url='#'):
         html += '<li>'
         html += '<pre>'+unicode(template)+'</pre>\n'
         if not change:
-
-            html += '<strong>No OA version found.</strong>'
+            reference = parse_citation_template(template)
+            title = unidecode(reference.get('Title'))
+            gs_url = 'http://scholar.google.com/scholar?'+urlencode({'q':title})
+            html += ('No OA version found. '+
+             ('<a href="%s">Search in Google Scholar</a>' % gs_url) )
             continue
         html += '<ul>\n'
         for key, (val,link) in change.items():

@@ -20,7 +20,7 @@ from docopt import docopt
 from main import *
 import os.path
 import md5
-from poc import OABOT_APP_MOUNT_POINT
+from main import OABOT_APP_MOUNT_POINT
 
 @route('/')
 def home():

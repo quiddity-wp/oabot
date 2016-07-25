@@ -2,3 +2,4 @@ wikiciteparser
 #pywikibot
 requests
 docopt
+unidecode
