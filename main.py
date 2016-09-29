@@ -30,7 +30,7 @@ if os.environ.get('OABOT_DEV', None) is not None:
 
 # See template_arg_mappings below for a list of examples of this class
 class ArgumentMapping(object):
-    def __init__(self, name, regex, is_id=False, alternate_names=[], group_id=1):
+    def __init__(self, name, regex, is_id=False, alternate_names=[], group_id=1, always_free=False):
         """
         :param name: the parameter slot in which the identifier is stored (e.g. arxiv)
         :para is_id: if this parameter is true, we will actually store the identifier in |id={{name| … }} instead of |name.
@@ -44,15 +44,36 @@ class ArgumentMapping(object):
         self.alternate_names = alternate_names
         self.group_id = group_id
 
+    def get(self, template):
+        """
+        Get the argument value in a particular template.
+        If the parameter should be input as |id=, we return the full
+        value of |id=. # TODO refine this
+        """
+        val = None
+        if self.is_id:
+            val = unicode(template.get('id').value)
+        else:
+            val = unicode(template.get(self.name).value)
+        for aid in self.alternate_names:
+            val = val or unicode(template.get(aid).value)
+        return val 
+
     def present(self, template):
+        return self.get(template) != None
+
+    def present_and_free(self, template):
         """
-        Is this argument already present in the template?
+        When the argument is in the template, and it links to a full text
+        according to the access icons
         """
-        # Check if the parameter is non-empty (or any alternate places)
-        non_empty = (not self.is_id and template.has(self.name, ignore_empty=True))
-        non_empty = non_empty or (self.is_id and template.has('id', ignore_empty=True))
-        non_empty = non_empty or any([template.has(aid, ignore_empty=True) for aid in self.alternate_names])
-        return non_empty
+        return (
+                self.present(template) and
+                    (self.always_free or
+                    template.get(self.name+'-access') == 'free'                      
+                    )               
+                )
+        
 
     def extract(self, url):
         """
@@ -64,16 +85,37 @@ class ArgumentMapping(object):
         return match.group(self.group_id)
 
 template_arg_mappings = [
-    ArgumentMapping('doi', r'https?://(dx\.)?doi\.org/([^ ]*)', group_id=2),
-    ArgumentMapping('hdl', r'https?://hdl\.handle\.net/([^ ]*)'),
-    ArgumentMapping('arxiv', r'https?://arxiv\.org/abs/(.*)', alternate_names=['eprint']),
-    ArgumentMapping('pmc', r'https?://www\.ncbi\.nlm\.nih\.gov/pmc/articles/PMC([^/]*)/?'),
-    ArgumentMapping('citeseerx', r'https?://citeseerx\.ist\.psu\.edu/viewdoc/summary\?doi=(.*)', is_id=True),
-    ArgumentMapping('url', r'(.*)'),
+    ArgumentMapping(
+        'biorxiv', r'https?://(dx\.)?doi\.org/10\.1101/([^ ]*)',
+        group_id=2,
+        always_free=True),
+    ArgumentMapping(
+        'doi',
+        r'https?://(dx\.)?doi\.org/([^ ]*)',
+        group_id=2),
+    ArgumentMapping(
+        'hdl',
+        r'https?://hdl\.handle\.net/([^ ]*)'),
+    ArgumentMapping(
+        'arxiv',
+        r'https?://arxiv\.org/abs/(.*)',
+        alternate_names=['eprint'],
+        always_free=True),
+    ArgumentMapping(
+        'pmc',
+        r'https?://www\.ncbi\.nlm\.nih\.gov/pmc/articles/PMC([^/]*)/?',
+        always_free=True),
+    ArgumentMapping(
+        'citeseerx',
+        r'https?://citeseerx\.ist\.psu\.edu/viewdoc/summary\?doi=(.*)',
+        always_free=True),
+    ArgumentMapping(
+        'url',
+        r'(.*)'),
     ]
 
 # the bot will not make any changes to these templates
-excluded_templates = ['cite arxiv']
+excluded_templates = ['cite arxiv', 'cite web']
 
 def get_oa_link(reference):
     """
@@ -116,10 +158,18 @@ def add_oa_links_in_references(text):
     changed_templates = []
 
     stats = {
-        'nb_templates':0, # total number of templates processed
-        'oa_found':0, # hits from the API
-        'changed':0, # actual changes on the templates
-        'already_present':0, # no change because already present
+        # total number of templates processed (not counting excluded
+        # ones)
+        'nb_templates':0,
+        # hits from the API
+        'oa_found':0,
+        # actual changes on the templates
+        'changed':0,
+        # no change because one link was already marked with the open
+        # lock
+        'already_open':0,
+        # no change because the |url= we tried to add was already present
+        'url_present':0,
         }
 
     for template in wikicode.filter_templates():
@@ -128,6 +178,25 @@ def add_oa_links_in_references(text):
         tpl_name = unicode(template.name).lower().strip()
         if reference and tpl_name not in excluded_templates:
             stats['nb_templates'] += 1
+
+            # First check if there is already a link to a full text
+            # in the citation.
+            already_oa_param = None
+            already_oa_value = None
+            for argmap in template_arg_mappings:
+                if argmap.present_and_free(template):
+                    already_oa_param = argmap.name
+                    already_oa_value = argmap.get(template)
+            
+            change = {}
+        
+            # If so, we just skip it - no need for more free links
+            if already_oa_param:
+                change['new_'+already_oa_param] = (already_oa_value,'#')
+                stats['already_open'] += 1
+                continue
+
+            # Otherwise, try to get a free link
             link = get_oa_link(reference)
             if not link:
                 changed_templates.append((orig_template,None))
@@ -136,8 +205,7 @@ def add_oa_links_in_references(text):
             # We found an OA link!
             stats['oa_found'] += 1
 
-            change = {}
-
+            # Try to match it with an argument
             argument_found = False
             for argmap in template_arg_mappings:
                 # Did the link we have got match that argument place?
@@ -262,8 +330,9 @@ def render_template(page_name, this_url='#'):
     # Print stats
     html += '<p>Citations changed: %s</p>\n' % stats['changed']
     html += '<p>Citations checked: %s</p>\n' % stats['nb_templates']
+    html += '<p>Citations already open (green lock already present): %s</p>\n' % stats['already_open']
     html += '<p>Free versions found: %s</p>\n' % stats['oa_found']
-    html += '<p>Citations unchanged (link already present): %s</p>\n' % stats['already_present']
+    html += '<p>Citations unchanged (link already present): %s</p>\n' % stats['url_present']
 
     # Render changes
 
