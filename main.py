@@ -21,6 +21,10 @@ if os.environ.get('OABOT_DEV', None) is not None:
     # Mount point is '/'
     OABOT_APP_MOUNT_POINT = ''
 
+# helper
+def get_value(template, param):
+    if template.has(param, ignore_empty=True):
+	return unicode(template.get(param).value)
 
 ##############
 # Edit logic #
@@ -43,6 +47,7 @@ class ArgumentMapping(object):
         self.is_id = is_id
         self.alternate_names = alternate_names
         self.group_id = group_id
+	self.always_free = always_free
 
     def get(self, template):
         """
@@ -52,12 +57,12 @@ class ArgumentMapping(object):
         """
         val = None
         if self.is_id:
-            val = unicode(template.get('id').value)
+            val = get_value(template, 'id')
         else:
-            val = unicode(template.get(self.name).value)
+            val = get_value(template, self.name)
         for aid in self.alternate_names:
-            val = val or unicode(template.get(aid).value)
-        return val 
+            val = val or get_value(template, aid)
+        return val
 
     def present(self, template):
         return self.get(template) != None
@@ -70,7 +75,7 @@ class ArgumentMapping(object):
         return (
                 self.present(template) and
                     (self.always_free or
-                    template.get(self.name+'-access') == 'free'                      
+                    get_value(template, self.name+'-access') == 'free'                      
                     )               
                 )
         
@@ -194,6 +199,7 @@ def add_oa_links_in_references(text):
             if already_oa_param:
                 change['new_'+already_oa_param] = (already_oa_value,'#')
                 stats['already_open'] += 1
+		changed_templates.append((orig_template, change))
                 continue
 
             # Otherwise, try to get a free link
@@ -220,7 +226,7 @@ def add_oa_links_in_references(text):
                 non_empty = argmap.present(template)           
                 if non_empty:
                     change['new_'+argmap.name] = (match,link)
-                    stats['already_present'] += 1
+                    stats['url_present'] += 1
                     break
 
                 # If the parameter is not present yet, add it
