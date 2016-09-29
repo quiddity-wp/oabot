@@ -16,6 +16,9 @@ td {
     line-height: 1.3em;
     background-color: #F9F9F9;
 }
+table.edit-stats td {
+    width: auto;
+}
 colgroup {
     border: 1px solid #BBB;
 }
