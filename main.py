@@ -34,13 +34,18 @@ def get_value(template, param):
 
 # See template_arg_mappings below for a list of examples of this class
 class ArgumentMapping(object):
-    def __init__(self, name, regex, is_id=False, alternate_names=[], group_id=1, always_free=False):
+    def __init__(self, name, regex, is_id=False, alternate_names=[],
+                    group_id=1, always_free=False, custom_access=False):
         """
         :param name: the parameter slot in which the identifier is stored (e.g. arxiv)
         :para is_id: if this parameter is true, we will actually store the identifier in |id={{name| … }} instead of |name.
         :par  regex: the regular expression extract on the URLs that trigger this mapping. The first parenthesis-enclosed group in these regular expressions should contain the id.
         :para alternate_names: alternate parameter slots to look out for - we will not add any identifier if one of them is non-empty.
         :para group_id: position of the identifier in the regex
+        :para always_free: the parameter denotes links which are always free
+        :para custom_access: name of the custom access parameter
+                    associated to this one (if any). If "True", then it will be
+                    name+'-access'
         """
         self.name = name
         self.regex = re.compile(regex)
@@ -48,6 +53,9 @@ class ArgumentMapping(object):
         self.alternate_names = alternate_names
         self.group_id = group_id
 	self.always_free = always_free
+        if type(custom_access) == bool:
+            custom_access = name+'-access'
+        self.custom_access = custom_access
 
     def get(self, template):
         """
@@ -75,7 +83,8 @@ class ArgumentMapping(object):
         return (
                 self.present(template) and
                     (self.always_free or
-                    get_value(template, self.name+'-access') == 'free'                      
+                    (self.custom_access and
+                        get_value(template, self.custom_access)=='free')
                     )               
                 )
         
@@ -97,10 +106,12 @@ template_arg_mappings = [
     ArgumentMapping(
         'doi',
         r'https?://(dx\.)?doi\.org/([^ ]*)',
-        group_id=2),
+        group_id=2,
+        custom_access=True),
     ArgumentMapping(
         'hdl',
-        r'https?://hdl\.handle\.net/([^ ]*)'),
+        r'https?://hdl\.handle\.net/([^ ]*)',
+        custom_access=True),
     ArgumentMapping(
         'arxiv',
         r'https?://arxiv\.org/abs/(.*)',
@@ -221,12 +232,16 @@ def add_oa_links_in_references(text):
 
                 argument_found = True
 
-                # If this parameter is already present in the template,
-                # don't change anything
-                non_empty = argmap.present(template)           
-                if non_empty:
-                    change['new_'+argmap.name] = (match,link)
+                # If this parameter is already present in the template:
+                current_value = argmap.get(template)
+                if current_value:
                     stats['url_present'] += 1
+                    change['new_'+argmap.name] = (match,link)
+                    if argmap.custom_access:
+                        stats['changed'] += 1
+                        template.add(argmap.custom_access, 'free')
+                         
+                    # don't change anything
                     break
 
                 # If the parameter is not present yet, add it
