@@ -27,7 +27,7 @@ print OABOT_APP_MOUNT_POINT
 # the bot will not make any changes to these templates
 excluded_templates = ['cite arxiv', 'cite web']
 
-rg_re = re.compile('(https?://www\.researchgate\.net/.*)/links/[0-9a-f]*.pdf')
+rg_re = re.compile('(https?://www\.researchgate\.net/.*/publication/[0-9]*)_.*/links/[0-9a-f]*.pdf')
 
 def get_oa_link(reference):
     """
