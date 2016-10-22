@@ -24,7 +24,6 @@ if os.environ.get('OABOT_DEV', None) is not None:
 print "moint point:"
 print OABOT_APP_MOUNT_POINT
 
-
 # the bot will not make any changes to these templates
 excluded_templates = ['cite arxiv', 'cite web']
 
@@ -49,6 +48,10 @@ def get_oa_link(reference):
 
     oa_url = resp.get('paper', {}).get('pdf_url')
 
+    # Temporary hack - some PMC links from BASE don't provide a PMC id
+    if oa_url == 'http://www.ncbi.nlm.nih.gov/pmc/articles/PMC':
+	oa_url = None
+
     # Try with DOAI if the dissemin API did not return a full text link
     if oa_url is None and doi:
         r = requests.head('http://doai.io/'+doi)
@@ -72,10 +75,10 @@ def add_oa_links_in_references(text):
         # total number of templates processed (not counting excluded
         # ones)
         'nb_templates':0,
-        # hits from the API
-        'oa_found':0,
-        # actual changes on the templates
+        # actual changes on the templates (including access-related changes)
         'changed':0,
+	# Links actually added to the templates
+        'links_added':0,
         # no change because one link was already marked with the open
         # lock
         'already_open':0,
@@ -115,7 +118,6 @@ def add_oa_links_in_references(text):
                 continue
 
             # We found an OA link!
-            stats['oa_found'] += 1
 
             # Try to match it with an argument
             argument_found = False
@@ -130,24 +132,27 @@ def add_oa_links_in_references(text):
                 # If this parameter is already present in the template:
                 current_value = argmap.get(template)
                 if current_value:
-                    stats['url_present'] += 1
                     change['new_'+argmap.name] = (match,link)
                     if argmap.custom_access:
                         stats['changed'] += 1
                         template.add(argmap.custom_access, 'free')
-                         
-                    # don't change anything
+		    else:
+			stats['url_present'] += 1
+                    	# don't change anything
                     break
 
                 # If the parameter is not present yet, add it
                 stats['changed'] += 1
-                if not argmap.is_id:
-                    template.add(argmap.name, match)
-                    change[argmap.name] = (match,link)
-                else:
+		stats['links_added'] += 1
+		if argmap.is_id:
                     val = '{{%s|%s}}' % (argmap.name,match)
                     template.add('id', val)
                     change['id'] = (val,link)
+                else:
+                    template.add(argmap.name, match)
+                    change[argmap.name] = (match,link)
+		    if argmap.custom_access:
+			template.add(argmap.custom_access, 'free')
                 break
 
             changed_templates.append((orig_template, change))
@@ -180,11 +185,43 @@ def get_page_over_api(page_name):
     text = page.get('revisions',[{}])[0]['*']
     return text
 
+def bot_is_allowed(text, user):
+    """
+    Taken from https://en.wikipedia.org/wiki/Template:Bots
+    For bot exclusion compliance.
+    """
+    user = user.lower().strip()
+    text = mwparserfromhell.parse(text)
+    for tl in text.filter_templates():
+        if tl.name in ('bots', 'nobots'):
+            break
+    else:
+        return True
+    for param in tl.params:
+        bots = [x.lower().strip() for x in param.value.split(",")]
+        if param.name == 'allow':
+            if ''.join(bots) == 'none': return False
+            for bot in bots:
+                if bot in (user, 'all'):
+                    return True
+        elif param.name == 'deny':
+            if ''.join(bots) == 'none': return True
+            for bot in bots:
+                if bot in (user, 'all'):
+                    return False
+    return False
+
 def perform_edit(page):
     """
     Performs the edit on the given page
     """
     text = page.get()
+
+    # Check if we can do the edit
+    allowed = bot_is_allowed(text, 'OAbot')
+    if not allowed:
+	return
+
     new_wikicode, changed_templates, stats = add_oa_links_in_references(text)
 
     if new_wikicode == text:
@@ -242,13 +279,23 @@ def render_template(page_name, this_url='#'):
 
     html = '<h2>Results for page <a href="%s">OABOT_PAGE_NAME</a></h2>\n' % page_url
     html += '<p>Processed: %s (<a href="%s&refresh=true">refresh</a>)</p>\n' % (datetime.utcnow().isoformat(), this_url)
+    html += '<p>This is only a simulation, no edit was performed.</p>'
+
+    # Check for exclusion
+    if not bot_is_allowed(text, 'OAbot'):
+	html += '<p><strong>Note:</strong> The bot is <a href="https://en.wikipedia.org/wiki/Template:Bots">not allowed</a> to edit this page.</p>'
 
     # Print stats
-    html += '<p>Citations changed: %s</p>\n' % stats['changed']
-    html += '<p>Citations checked: %s</p>\n' % stats['nb_templates']
-    html += '<p>Citations already open (green lock already present): %s</p>\n' % stats['already_open']
-    html += '<p>Free versions found: %s</p>\n' % stats['oa_found']
-    html += '<p>Citations unchanged (link already present): %s</p>\n' % stats['url_present']
+    html += '<table class="edit-stats">'
+    html += '<tr><td>Citations checked</td><td>%s</td></tr>\n' % stats['nb_templates']
+    html += '<tr><td>* Citations changed</td><td>%s</td>\n' % stats['changed']
+    html += '<tr><td>&nbsp;&nbsp;+ Citations with a new free link</td><td>%s</td></tr>\n' % stats['links_added']
+    html += '<tr><td>&nbsp;&nbsp;+ No new free link, but new access icon</td><td>%s</td></tr>\n' % (stats['changed']-stats['links_added'])
+    html += '<tr><td>* Citations left unchanged</td><td>%s</td>\n' % (stats['nb_templates']-stats['changed'])
+    html += '<tr><td>&nbsp;&nbsp;+ Green lock already present</td><td>%s</td></tr>\n' % stats['already_open']
+    html += '<tr><td>&nbsp;&nbsp;+ No room for a new |url=</td><td>%s</td></tr>\n' % stats['url_present']
+    html += '<tr><td>&nbsp;&nbsp;+ No free version found</td><td>%s</td></tr>\n' % (stats['nb_templates']-stats['changed']-stats['url_present']-stats['already_open'])
+    html += '</table>'
 
     # Render changes
 

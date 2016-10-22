@@ -35,7 +35,7 @@ class ArgumentMapping(object):
         self.alternate_names = alternate_names
         self.group_id = group_id
 	self.always_free = always_free
-        if type(custom_access) == bool:
+        if custom_access and type(custom_access) == bool:
             custom_access = name+'-access'
         self.custom_access = custom_access
 
