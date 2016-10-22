@@ -38,7 +38,7 @@ def css(fname):
 
 def cached(fun, force, *args):
     r = md5.md5()
-    r.update(args[0])
+    r.update(args[0].encode('utf-8'))
     h = r.hexdigest()
     cache_fname = 'cache/%s.html' % h
     if not force and os.path.isfile(cache_fname):
@@ -53,7 +53,7 @@ def cached(fun, force, *args):
     
 @route('/process')
 def process():
-    page_name = request.query.get('name')
+    page_name = request.query.get('name').decode('utf-8')
     force = request.query.get('refresh') == 'true'
     tpl = cached(render_template, force, page_name, request.url)
     return tpl

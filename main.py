@@ -1,4 +1,5 @@
-# -*- encoding: utf-8 -*# -*- encoding: utf-8 -*--
+# -*- encoding: utf-8 -*-
+from __future__ import unicode_literals
 from wikiciteparser.parser import parse_citation_template
 from urllib import urlencode
 import mwparserfromhell
@@ -265,7 +266,7 @@ def make_diff(old, new):
 
 def render_template(page_name, this_url='#'):
 
-    with open('templates/skeleton.html','r') as f:
+    with codecs.open('templates/skeleton.html','r', 'utf-8') as f:
         skeleton = f.read()
 
     try:
