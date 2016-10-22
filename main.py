@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*# -*- encoding: utf-8 -*--
 from wikiciteparser.parser import parse_citation_template
-#import pywikibot
 from urllib import urlencode
 import mwparserfromhell
 import requests
@@ -27,6 +26,8 @@ print OABOT_APP_MOUNT_POINT
 # the bot will not make any changes to these templates
 excluded_templates = ['cite arxiv', 'cite web']
 
+rg_re = re.compile('(https?://www\.researchgate\.net/.*)/links/[0-9a-f]*.pdf')
+
 def get_oa_link(reference):
     """
     Given a citation template (as parsed by wikiciteparser),
@@ -48,15 +49,22 @@ def get_oa_link(reference):
 
     oa_url = resp.get('paper', {}).get('pdf_url')
 
-    # Temporary hack - some PMC links from BASE don't provide a PMC id
-    if oa_url == 'http://www.ncbi.nlm.nih.gov/pmc/articles/PMC':
-	oa_url = None
-
     # Try with DOAI if the dissemin API did not return a full text link
     if oa_url is None and doi:
         r = requests.head('http://doai.io/'+doi)
         if 'location' in r.headers and not 'doi.org/10.' in r.headers['location']:
             oa_url = r.headers['location']
+
+    # Temporary hack - some PMC links from BASE don't provide a PMC id
+    # Dissemin does not extract them correctly.
+    if oa_url == 'http://www.ncbi.nlm.nih.gov/pmc/articles/PMC':
+	oa_url = None
+    # ResearchGate PDF links actually lead to HTML
+    if oa_url:
+        rg_match = rg_re.match(oa_url)
+        if rg_match:
+            oa_url = rg_match.group(1)
+
 
     return oa_url
 
@@ -265,10 +273,12 @@ def render_template(page_name, this_url='#'):
         #page = pywikibot.Page(site, page_name)
         #text, page_name = get_text(page)
         text = get_page_over_api(page_name)
-    except (pywikibot.exceptions.Error, ValueError) as e:
+    except ValueError as e:
         html = "<p><strong>Error:</strong> "+unicode(e)+"</p>"
         skeleton = skeleton.replace('OABOT_BODY_GOES_HERE', html)
         skeleton = skeleton.replace('OABOT_PAGE_NAME', '')
+        skeleton = skeleton.replace('OABOT_APP_MOUNT_POINT',
+OABOT_APP_MOUNT_POINT)
         return skeleton
 
     new_wikicode, changed_templates, stats = add_oa_links_in_references(text)
