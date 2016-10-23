@@ -21,11 +21,22 @@ OABOT_APP_MOUNT_POINT = '/oabot'
 if os.environ.get('OABOT_DEV', None) is not None:
     # Mount point is '/'
     OABOT_APP_MOUNT_POINT = ''
-print "moint point:"
-print OABOT_APP_MOUNT_POINT
 
 # the bot will not make any changes to these templates
-excluded_templates = ['cite arxiv', 'cite web']
+excluded_templates = ['cite arxiv', 'cite web', 'cite book']
+
+# Set the API key for the Zotero endpoint here.
+# This Zotero endpoint is just a version of 
+# https://github.com/zotero/translation-server
+# protected by an API key (otherwise it would allow
+# anyone use it to query any website, which is dangerous)
+#
+# Ask for an API key at  dev @ dissem . in
+# 
+ZOTERO_CACHE_API_KEY = os.environ.get('ZOTERO_CACHE_API_KEY','')
+if not ZOTERO_CACHE_API_KEY:
+    raise ValueError('Please provide a Zotero cache API key '+
+                    '(email dev @ dissem . in to get one.)')
 
 rg_re = re.compile('(https?://www\.researchgate\.net/.*/publication/[0-9]*)_.*/links/[0-9a-f]*.pdf')
 
@@ -39,35 +50,83 @@ def get_oa_link(reference):
     authors = reference.get('Authors', [])
     date = reference.get('Date')
 
-    req = requests.post('http://dissem.in/api/query', json={
+    # CS1 represents unparsed authors as {'last':'First Last'}
+    for i in range(len(authors)):
+        if 'first' not in authors[i]:
+            authors[i] = {'plain':authors[i].get('last','')}
+
+    args = {
         'title':title,
         'authors':authors,
         'date':date,
         'doi':doi,
-        })
+        }
+    req = requests.post('http://dissem.in/api/query', json=args)
+
 
     resp = req.json()
 
-    oa_url = resp.get('paper', {}).get('pdf_url')
+    oa_url = None
+    # Dissemin's full text detection is not always accurate, so
+    # we manually go through each url for the paper and check
+    # if it is free to read.
+    oa_url = None
+    candidate_urls = [
+        record.get('splash_url') for record in
+        resp.get('paper',{}).get('records',[])
+    ]
+    free_urls = filter(check_free_to_read, candidate_urls)
+    if free_urls:
+        return free_urls[0]
 
     # Try with DOAI if the dissemin API did not return a full text link
-    if oa_url is None and doi:
+    oa_url = None
+    if doi:
         r = requests.head('http://doai.io/'+doi)
         if 'location' in r.headers and not 'doi.org/10.' in r.headers['location']:
             oa_url = r.headers['location']
 
-    # Temporary hack - some PMC links from BASE don't provide a PMC id
-    # Dissemin does not extract them correctly.
-    if oa_url == 'http://www.ncbi.nlm.nih.gov/pmc/articles/PMC':
-	oa_url = None
-    # ResearchGate PDF links actually lead to HTML
-    if oa_url:
-        rg_match = rg_re.match(oa_url)
-        if rg_match:
-            oa_url = rg_match.group(1)
+    if not oa_url:
+        return
+    
+    # Only keep results from researchgate.net or academia.edu from DOAI
+    if not (oa_url.startswith('https://www.researchgate.net') or 
+        oa_url.startswith('https://www.academia.edu')):
+        return
 
+    # ResearchGate PDF links actually lead to HTML, so let's make them
+    # point to the splash page directly
+    rg_match = rg_re.match(oa_url)
+    if rg_match:
+        oa_url = rg_match.group(1)
 
     return oa_url
+
+def check_free_to_read(url):
+    """
+    Checks (with Zotero translators) that a given URL is free to read
+    """
+    r = requests.post('http://doi-cache.dissem.in/zotero/query',
+                data={
+            'url':url,
+            'key':ZOTERO_CACHE_API_KEY,
+            })
+
+    # Is a full text available there?
+    items = None
+    try:
+        items = r.json()
+    except ValueError:
+        if r.status_code == 403:
+            raise ValueError("Please provide a valid Zotero cache API key")
+    if not items:
+        return False
+
+    for item in items:
+        for attachment in item.get('attachments',[]):
+            if attachment.get('mimeType') == 'application/pdf':
+                return True
+    return False
 
 def add_oa_links_in_references(text):
     """
