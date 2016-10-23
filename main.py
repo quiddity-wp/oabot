@@ -389,12 +389,12 @@ OABOT_APP_MOUNT_POINT)
 
     html += '<h3>Template details</h3>\n' # (%d)</h3>\n' % len(changed_templates)
     html += '<ol>\n'
-    for template, change in changed_templates:
-        html += '<li>'
+    for idx, (template, change) in enumerate(changed_templates):
+        html += '<li id="%d">' % (idx+1)
         html += '<pre>'+unicode(template)+'</pre>\n'
         if not change:
             reference = parse_citation_template(template)
-            title = unidecode(reference.get('Title'))
+            title = unidecode(reference.get('Title',''))
             gs_url = 'http://scholar.google.com/scholar?'+urlencode({'q':title})
             html += ('No OA version found. '+
              ('<a href="%s">Search in Google Scholar</a>' % gs_url) )
