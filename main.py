@@ -152,6 +152,9 @@ def add_oa_links_in_references(text):
         'already_open':0,
         # no change because the |url= we tried to add was already present
         'url_present':0,
+        # no change because the template uses |registration= or
+        # |subscription=
+        'registration_subscription':0,        
         }
 
     for template in wikicode.filter_templates():
@@ -182,9 +185,14 @@ def add_oa_links_in_references(text):
             # If the template is marked with |registration= or
             # |subscription= , let's assume that the editor tried to find
             # a better version themselves so it's not worth trying.
-            if (get_value(template, 'subscription') or get_value(template,
-'registration')) in ['yes','y','true']:
+            if ((get_value(template, 'subscription')
+                or get_value(template, 'registration')) in 
+                ['yes','y','true']):
                 stats['registration_subscription'] += 1
+                changed_templates.append((orig_template,
+                    {'blocked_by':
+                    ('|subscription= or |registration=','')
+                }))
                 continue
 
             # Otherwise, try to get a free link
@@ -372,7 +380,9 @@ OABOT_APP_MOUNT_POINT)
     html += '<tr><td>* Citations left unchanged</td><td>%s</td>\n' % (stats['nb_templates']-stats['changed'])
     html += '<tr><td>&nbsp;&nbsp;+ Green lock already present</td><td>%s</td></tr>\n' % stats['already_open']
     html += '<tr><td>&nbsp;&nbsp;+ No room for a new |url=</td><td>%s</td></tr>\n' % stats['url_present']
-    html += '<tr><td>&nbsp;&nbsp;+ No free version found</td><td>%s</td></tr>\n' % (stats['nb_templates']-stats['changed']-stats['url_present']-stats['already_open'])
+    html += '<tr><td>&nbsp;&nbsp;+ Citation uses |registration= or |subscription=</td><td>%s</td></tr>\n' % stats['registration_subscription']
+    html += ('<tr><td>&nbsp;&nbsp;+ No free version found</td><td>%s</td></tr>\n' %
+        (stats['nb_templates']-stats['changed']-stats['url_present']-stats['already_open']-stats['registration_subscription']))
     html += '</table>'
 
     # Render changes
@@ -391,13 +401,17 @@ OABOT_APP_MOUNT_POINT)
             continue
         html += '<ul>\n'
         for key, (val,link) in change.items():
-            if key.startswith('new_'):
-                key = key[4:]
-                html += '<li>Already present: <span class="template_param">%s=' % key
+            if key == 'blocked_by':
+                html += 'No change made as %s is present' % val
             else:
-                html += '<strong>Added:</strong>\n<li><span class="template_param">%s=' % key
-            html += '<a href="%s">%s</a>' % (link,val)
-            html += '</span></li>\n'
+                if key.startswith('new_'):
+                    key = key[4:]
+                    html += '<li>Already present: <span class="template_param">%s=' % key
+                else:
+                    html += '<strong>Added:</strong>\n<li><span class="template_param">%s=' % key
+                html += '<a href="%s">%s</a>' % (link,val)
+                html += '</span></li>\n'
+
         html += '</ul>\n</li>\n'
     html += '</ol>\n'
 
