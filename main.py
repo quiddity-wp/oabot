@@ -13,7 +13,7 @@ from datetime import datetime
 from copy import deepcopy
 from difflib import HtmlDiff
 import os
-from arguments import template_arg_mappings
+from arguments import template_arg_mappings, get_value
 
 # App mount point, if the environment variable 'OABOT_DEV' is defined then
 # mount the application on '/', otherwise mount it under '/oabot'
@@ -177,6 +177,14 @@ def add_oa_links_in_references(text):
                 change['new_'+already_oa_param] = (already_oa_value,'#')
                 stats['already_open'] += 1
 		changed_templates.append((orig_template, change))
+                continue
+
+            # If the template is marked with |registration= or
+            # |subscription= , let's assume that the editor tried to find
+            # a better version themselves so it's not worth trying.
+            if (get_value(template, 'subscription') or get_value(template,
+'registration')) in ['yes','y','true']:
+                stats['registration_subscription'] += 1
                 continue
 
             # Otherwise, try to get a free link
