@@ -38,7 +38,10 @@ if not ZOTERO_CACHE_API_KEY:
     raise ValueError('Please provide a Zotero cache API key '+
                     '(email dev @ dissem . in to get one.)')
 
-rg_re = re.compile('(https?://www\.researchgate\.net/.*/publication/[0-9]*)_.*/links/[0-9a-f]*.pdf')
+rg_re = re.compile('(https?://www\.researchgate\.net/)(.*)(publication/[0-9]*)_.*/links/[0-9a-f]*.pdf')
+
+def remove_diacritics(s):
+    return unidecode(s) if type(s) == unicode else s
 
 def get_oa_link(reference):
     """
@@ -62,7 +65,6 @@ def get_oa_link(reference):
         'doi':doi,
         }
     req = requests.post('http://dissem.in/api/query', json=args)
-
 
     resp = req.json()
 
@@ -98,7 +100,7 @@ def get_oa_link(reference):
     # point to the splash page directly
     rg_match = rg_re.match(oa_url)
     if rg_match:
-        oa_url = rg_match.group(1)
+        oa_url = rg_match.group(1)+rg_match.group(3)
 
     return oa_url
 
@@ -394,7 +396,7 @@ OABOT_APP_MOUNT_POINT)
         html += '<pre>'+unicode(template)+'</pre>\n'
         if not change:
             reference = parse_citation_template(template)
-            title = unidecode(reference.get('Title',''))
+            title = remove_diacritics(reference.get('Title',''))
             gs_url = 'http://scholar.google.com/scholar?'+urlencode({'q':title})
             html += ('No OA version found. '+
              ('<a href="%s">Search in Google Scholar</a>' % gs_url) )
