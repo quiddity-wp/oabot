@@ -14,6 +14,7 @@ from copy import deepcopy
 from difflib import HtmlDiff
 import os
 from arguments import template_arg_mappings, get_value
+from ranking import sort_links
 
 # App mount point, if the environment variable 'OABOT_DEV' is defined then
 # mount the application on '/', otherwise mount it under '/oabot'
@@ -77,9 +78,9 @@ def get_oa_link(reference):
         record.get('splash_url') for record in
         resp.get('paper',{}).get('records',[])
     ]
-    free_urls = filter(check_free_to_read, candidate_urls)
-    if free_urls:
-        return free_urls[0]
+    for url in sort_links(candidate_urls):
+	if check_free_to_read(url):
+	    return url
 
     # Try with DOAI if the dissemin API did not return a full text link
     oa_url = None
