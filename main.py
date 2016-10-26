@@ -295,7 +295,7 @@ def bot_is_allowed(text, user):
             for bot in bots:
                 if bot in (user, 'all'):
                     return False
-    return False
+    return True
 
 def perform_edit(page):
     """
