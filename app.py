@@ -46,8 +46,8 @@ def cached(fun, force, *args):
 	    val = f.read()
 	return val
     else:
+	value = fun(*args)
 	with codecs.open(cache_fname, 'w', 'utf-8') as f:
-	    value = fun(*args)
 	    f.write(value)
 	return value
     
