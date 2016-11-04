@@ -131,6 +131,40 @@ def check_free_to_read(url):
                 return True
     return False
 
+def check_metadata_with_crossref(doi, reference):
+    """
+    Fetch the official author lists for a given DOI
+    and match them with the ones input in the citation.
+    """
+    # doi-cache.dissem.in/DOI acts like doi.org/DOI for Citeproc+JSON
+    # metadata. Crossref's metadata service is currently unavailable so
+    # we use this cache.
+    citeproc = requests.get('http://doi-cache.dissem.in/'+doi, headers=
+        {'Accept':'application/citeproc+json'}).json()
+
+    official_authors = citeproc.get('author')
+    if not official_authors:
+        return False
+    
+    try:
+        official_last_names = [
+            a.get('family')
+            for a in official_authors
+            ]
+        
+        our_last_names = [
+            a.get('last')
+            for a in reference['Authors']
+            ]
+
+        def normalize(lst):
+            return set([remove_diacritics(s) for s in lst])
+
+        return normalize(official_last_names) == normalize(our_last_names)
+    except KeyError, ValueError:
+        return False
+        
+
 def add_oa_links_in_references(text):
     """
     Main function of the bot.
@@ -229,6 +263,17 @@ def add_oa_links_in_references(text):
                     break
 
                 # If the parameter is not present yet, add it
+                
+                # -- Special case for DOIs
+                # If we are trying to add a DOI, that means
+                # the matching was done without DOI, solely based
+                # on the rest of the metadata. This might not be
+                # accurate. So, we check that the list of authors
+                # and date match.
+                if (argmap.name == 'doi' and not
+                     check_metadata_with_crossref(match, reference)):
+                    break
+
                 stats['changed'] += 1
 		stats['links_added'] += 1
 		if argmap.is_id:
