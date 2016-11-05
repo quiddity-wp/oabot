@@ -7,6 +7,7 @@ import requests
 import json
 import codecs
 import sys
+import urllib
 from unidecode import unidecode
 import re
 from datetime import datetime
@@ -348,24 +349,70 @@ def perform_edit(page):
     Performs the edit on the given page
     """
     text = page.get()
+    oldid = page.latest_revision_id
 
     # Check if we can do the edit
     allowed = bot_is_allowed(text, 'OAbot')
     if not allowed:
+        print "Not allowed"
 	return
 
     new_wikicode, changed_templates, stats = add_oa_links_in_references(text)
 
     if new_wikicode == text:
+        print "No changes"
         return changed_templates, stats
 
     page.text = new_wikicode
-    edit_message = 'Added open access links in '
-    if stats['changed'] == 1:
-        edit_message += '1 citation.'
-    else:
-        edit_message += ('%d citations.' % stats['changed'])
-    page.save(edit_message)
+
+    # Generate new edit message
+    edit_message = 'Added '
+    if stats['links_added']:
+        edit_message += ('%d free to read link' %
+                            stats['links_added'])
+        if stats['links_added'] > 1:
+            edit_message += 's'
+    
+    icons_added = stats['changed'] - stats['links_added']
+    if icons_added > 0:
+        if stats['links_added']:
+            edit_message += ' and '
+        edit_message += ('%d access icon' % icons_added)
+        if icons_added > 1:
+            edit_message += 's'
+    
+    edit_message += ' in citations. [[User talk:OAbot|Feedback]]'
+
+    print edit_message
+
+    # Perform the edit
+    #page.save(edit_message)
+    
+    # Get our new revision id
+    page.get(force=True)
+    revid = page.latest_revision_id
+    diffurl = ("https://en.wikipedia.org/w/index.php?diff=%d&oldid=%d"
+                %
+                (revid, oldid))
+
+    # Generate HTML summary of the changes
+    html = render_change(
+                text,
+                new_wikicode,
+                changed_templates,
+                stats,
+                page.title(),
+                '<a href="%s">Edit performed</a>.' %
+                diffurl)
+    html = render_html_template(html, page.title())
+    
+    html_fname = 'edits/%s_%d_%s.html' % (datetime.utcnow().isoformat(),
+        oldid,
+        urllib.quote(remove_diacritics(page.title(underscore=True))))
+
+    with codecs.open(html_fname, 'w', 'utf-8') as f:
+        f.write(html)
+
     return changed_templates, stats
 
 ##################
@@ -387,36 +434,20 @@ def make_diff(old, new):
     return html
 
 
-def render_template(page_name, this_url='#'):
-
-    with codecs.open('templates/skeleton.html','r', 'utf-8') as f:
-        skeleton = f.read()
-
-    try:
-        #site = pywikibot.Site()
-        #page = pywikibot.Page(site, page_name)
-        #text, page_name = get_text(page)
-        text = get_page_over_api(page_name)
-    except ValueError as e:
-        html = "<p><strong>Error:</strong> "+unicode(e)+"</p>"
-        skeleton = skeleton.replace('OABOT_BODY_GOES_HERE', html)
-        skeleton = skeleton.replace('OABOT_PAGE_NAME', '')
-        skeleton = skeleton.replace('OABOT_APP_MOUNT_POINT',
-OABOT_APP_MOUNT_POINT)
-        return skeleton
-
-    new_wikicode, changed_templates, stats = add_oa_links_in_references(text)
-    with codecs.open('new_wikicode', 'w', 'utf-8') as f:
-        f.write(new_wikicode)
-
+def render_change(old_wikicode, new_wikicode, changed_templates, stats,
+                page_name, edit_link):
+    """
+    Renders an HTML summary of the changes
+    made by the bot
+    """
     page_url = 'https://en.wikipedia.org/wiki/'+page_name #'https:'+page.permalink()
 
     html = '<h2>Results for page <a href="%s">OABOT_PAGE_NAME</a></h2>\n' % page_url
-    html += '<p>Processed: %s (<a href="%s&refresh=true">refresh</a>)</p>\n' % (datetime.utcnow().isoformat(), this_url)
-    html += '<p>This is only a simulation, no edit was performed.</p>'
+    html += '<p>Processed: %s</p>\n' % datetime.utcnow().isoformat()
+    html += ('<p>%s</p>' % edit_link)
 
     # Check for exclusion
-    if not bot_is_allowed(text, 'OAbot'):
+    if not bot_is_allowed(old_wikicode, 'OAbot'):
 	html += '<p><strong>Note:</strong> The bot is <a href="https://en.wikipedia.org/wiki/Template:Bots">not allowed</a> to edit this page.</p>'
 
     # Print stats
@@ -465,15 +496,39 @@ OABOT_APP_MOUNT_POINT)
 
     # Render diff
     html += '<h3>Wikicode diff</h3>\n'
-    html += make_diff(text, new_wikicode)+'\n'
+    html += make_diff(old_wikicode, new_wikicode)+'\n'
 
+    return html
+
+def render_html_template(html, page_name):
+    with codecs.open('templates/skeleton.html','r', 'utf-8') as f:
+        skeleton = f.read()
     skeleton = skeleton.replace('OABOT_APP_MOUNT_POINT', OABOT_APP_MOUNT_POINT)
     skeleton = skeleton.replace('OABOT_BODY_GOES_HERE', html)
     skeleton = skeleton.replace('OABOT_PAGE_NAME', page_name)
-
     return skeleton
 
+def generate_html_for_dry_run(page_name, refresh_url=None):
+    """
+    Simulates an edit and renders an HTML summary of it
+    :returns: the HTML code
+    """
+    try:
+        #site = pywikibot.Site()
+        #page = pywikibot.Page(site, page_name)
+        #text, page_name = get_text(page)
+        text = get_page_over_api(page_name)
+    except ValueError as e:
+        return render_html_template("<p><strong>Error:</strong>"+unicode(e)+"</p>",
+            page_name)
+
+    new_wikicode, changed_templates, stats = add_oa_links_in_references(text)
+    html = render_change(text, new_wikicode, changed_templates, stats, page_name,
+                'This is a simulation, no edit was performed. (<a href="%s&refresh=true">refresh</a>)' % refresh_url)
+    return render_html_template(html, page_name)
+
 if __name__ == '__main__':
+    import pywikibot
     page_name = sys.argv[1]
     site = pywikibot.Site()
     page = pywikibot.Page(site, page_name)

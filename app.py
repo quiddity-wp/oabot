@@ -19,6 +19,7 @@ from bottle import route, run, static_file, request, default_app
 from docopt import docopt
 from main import *
 import os.path
+from os import walk
 import md5
 from main import OABOT_APP_MOUNT_POINT
 
@@ -29,12 +30,32 @@ def home():
 
     homepage = homepage.replace('OABOT_APP_MOUNT_POINT', OABOT_APP_MOUNT_POINT)
 
+    # list recent edits
+    page_name_re = re.compile(r'^[^_]*_[0-9]*_(.*)\.html')
+    edits = '<ul>\n'
+    for (_, _, fnames) in walk('edits/'):
+        recent = sorted(fnames)[:10]
+        for fname in recent:
+            m = page_name_re.match(fname)
+            if not m:
+                continue
+            page_name = m.group(1).replace('_',' ')
+            edits += '<li><a href="edits/%s">%s</a></li>\n' % (fname,
+                    page_name)
+        break
+    edits += '</ul>\n'
+    homepage = homepage.replace('RECENT_EDITS', edits)
+
     return homepage
 
 
 @route('/css/<fname>')
 def css(fname):
     return static_file(fname, root='css/')
+
+@route('/edits/<fname>')
+def edits(fname):
+    return static_file(fname, root='edits/')
 
 def cached(fun, force, *args):
     r = md5.md5()
@@ -55,9 +76,8 @@ def cached(fun, force, *args):
 def process():
     page_name = request.query.get('name').decode('utf-8')
     force = request.query.get('refresh') == 'true'
-    tpl = cached(render_template, force, page_name, request.url)
+    tpl = cached(generate_html_for_dry_run, force, page_name, request.url)
     return tpl
-
 
 if __name__ == '__main__':
     arguments = docopt(__doc__, version=__version__)
