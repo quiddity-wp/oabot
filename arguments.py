@@ -80,6 +80,16 @@ class ArgumentMapping(object):
             return None
         return match.group(self.group_id)
 
+url_pdf_re = re.compile(r'.*\.pdf([?#].*)?$', re.IGNORECASE)
+class UrlArgumentMapping(ArgumentMapping):
+    def present_and_free(self, template):
+	val = self.get(template)
+	if val:
+	    match = url_pdf_re.match(val)
+	    if match:
+		return True
+	return False
+
 template_arg_mappings = [
     ArgumentMapping(
         'biorxiv', r'https?://(dx\.)?doi\.org/10\.1101/([^ ]*)',
@@ -107,7 +117,7 @@ template_arg_mappings = [
         'citeseerx',
         r'https?://citeseerx\.ist\.psu\.edu/viewdoc/summary\?doi=(.*)',
         always_free=True),
-    ArgumentMapping(
+    UrlArgumentMapping(
         'url',
         r'(.*)'),
     ]
