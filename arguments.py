@@ -80,12 +80,12 @@ class ArgumentMapping(object):
             return None
         return match.group(self.group_id)
 
-url_pdf_re = re.compile(r'.*\.pdf([?#].*)?$', re.IGNORECASE)
+url_pdf_extension_re = re.compile(r'.*\.pdf([\?#].*)?$', re.IGNORECASE)
 class UrlArgumentMapping(ArgumentMapping):
     def present_and_free(self, template):
 	val = self.get(template)
 	if val:
-	    match = url_pdf_re.match(val)
+	    match = url_pdf_extension_re.match(val.strip())
 	    if match:
 		return True
 	return False
