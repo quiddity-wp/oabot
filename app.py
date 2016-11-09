@@ -21,6 +21,7 @@ from main import *
 import os.path
 from os import walk
 import md5
+import urllib
 from main import OABOT_APP_MOUNT_POINT
 
 @route('/')
@@ -34,14 +35,15 @@ def home():
     page_name_re = re.compile(r'^[^_]*_[0-9]*_(.*)\.html')
     edits = '<ul>\n'
     for (_, _, fnames) in walk('edits/'):
-        recent = sorted(fnames)[:10]
+        recent = sorted(fnames, reverse=True)[:10]
         for fname in recent:
             m = page_name_re.match(fname)
             if not m:
                 continue
             page_name = m.group(1).replace('_',' ')
-            edits += '<li><a href="edits/%s">%s</a></li>\n' % (fname,
-                    page_name)
+            edits += '<li><a href="edits/%s">%s</a></li>\n' % (
+                    urllib.quote(fname),
+                    urllib.unquote(page_name))
         break
     edits += '</ul>\n'
     homepage = homepage.replace('RECENT_EDITS', edits)

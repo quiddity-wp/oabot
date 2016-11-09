@@ -83,6 +83,14 @@ def get_oa_link(reference):
 	if check_free_to_read(url):
 	    return url
 
+    # At this point Zotero failed to fetch a full text for all our urls.
+    # If Dissemin thinks there is a full text somewhere anyway,
+    # skip this citation, because we might do something wrong.
+    # For instance, we do not want to add a preprint while the DOI
+    # is free to read (but we failed to detect that with Zotero).
+    if resp.get('paper',{}).get('pdf_url'):
+        return
+
     # Try with DOAI if the dissemin API did not return a full text link
     oa_url = None
     if doi:
@@ -526,6 +534,18 @@ def generate_html_for_dry_run(page_name, refresh_url=None):
     html = render_change(text, new_wikicode, changed_templates, stats, page_name,
                 'This is a simulation, no edit was performed. (<a href="%s&refresh=true">refresh</a>)' % refresh_url)
     return render_html_template(html, page_name)
+
+def test_run(max_edits=50):
+    import pywikibot
+    site = pywikibot.Site()
+    cs1 = pywikibot.Page(site, 'Module:Citation/CS1')
+    count = 0
+    for p in cs1.embeddedin(namespaces=[0]):
+        if count >= max_edits:
+            break
+        r = perform_edit(p) 
+        if r and r[1]['changed']:
+            count += 1
 
 if __name__ == '__main__':
     import pywikibot
