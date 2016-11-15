@@ -118,26 +118,29 @@ def check_free_to_read(url):
     """
     Checks (with Zotero translators) that a given URL is free to read
     """
-    r = requests.post('http://doi-cache.dissem.in/zotero/query',
-                data={
-            'url':url,
-            'key':ZOTERO_CACHE_API_KEY,
-            })
-
-    # Is a full text available there?
-    items = None
     try:
-        items = r.json()
-    except ValueError:
-        if r.status_code == 403:
-            raise ValueError("Please provide a valid Zotero cache API key")
-    if not items:
-        return False
+	    r = requests.post('http://doi-cache.dissem.in/zotero/query',
+			data={
+		    'url':url,
+		    'key':ZOTERO_CACHE_API_KEY,
+		    }, timeout=10)
 
-    for item in items:
-        for attachment in item.get('attachments',[]):
-            if attachment.get('mimeType') == 'application/pdf':
-                return True
+	    # Is a full text available there?
+	    items = None
+	    try:
+		items = r.json()
+	    except ValueError:
+		if r.status_code == 403:
+		    raise ValueError("Please provide a valid Zotero cache API key")
+	    if not items:
+		return False
+
+	    for item in items:
+		for attachment in item.get('attachments',[]):
+		    if attachment.get('mimeType') == 'application/pdf':
+			return True
+    except requests.exceptions.Timeout:
+	pass
     return False
 
 def check_metadata_with_crossref(doi, reference):
@@ -209,6 +212,8 @@ def add_oa_links_in_references(text):
         tpl_name = unicode(template.name).lower().strip()
         if reference and tpl_name not in excluded_templates:
             stats['nb_templates'] += 1
+	    sys.stdout.write('.')
+	    sys.stdout.flush()
 
             # First check if there is already a link to a full text
             # in the citation.
@@ -297,7 +302,8 @@ def add_oa_links_in_references(text):
                 break
 
             changed_templates.append((orig_template, change))
-    
+   
+    print ''
     return unicode(wikicode), changed_templates, stats
 
 
@@ -394,7 +400,7 @@ def perform_edit(page):
     print edit_message
 
     # Perform the edit
-    #page.save(edit_message)
+    page.save(edit_message)
     
     # Get our new revision id
     page.get(force=True)
@@ -538,9 +544,12 @@ def generate_html_for_dry_run(page_name, refresh_url=None):
 def test_run(max_edits=50):
     import pywikibot
     site = pywikibot.Site()
+    site.login()
     cs1 = pywikibot.Page(site, 'Module:Citation/CS1')
     count = 0
+    print "requesting pages"
     for p in cs1.embeddedin(namespaces=[0]):
+	print p.title()
         if count >= max_edits:
             break
         r = perform_edit(p) 
