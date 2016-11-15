@@ -68,7 +68,7 @@ def get_oa_link(reference):
         paper_object.get('records',[])
     ])
     for url in sort_links(candidate_urls):
-        is_free = check_free_to_read(url):
+        is_free = check_free_to_read(url)
         if not is_free and url == dissemin_pdf_url:
             # Dissemin thinks that there is a PDF somewhere,
             # but Zotero fails to confirm it: skip, this
@@ -304,15 +304,12 @@ def add_oa_links_in_references(text):
                 break
 
             changed_templates.append((orig_template, change))
-<<<<<<< HEAD
    
     print ''
-=======
     
     # Flush the cache to the disk
     urls_cache.save()
 
->>>>>>> 4e782819efef1aaea0df89c493612431afe290b2
     return unicode(wikicode), changed_templates, stats
 
 
