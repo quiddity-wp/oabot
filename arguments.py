@@ -62,11 +62,13 @@ class ArgumentMapping(object):
         When the argument is in the template, and it links to a full text
         according to the access icons
         """
+        def strip(s):
+            return s.strip() if s else None
         return (
                 self.present(template) and
                     (self.always_free or
                     (self.custom_access and
-                        get_value(template, self.custom_access)=='free')
+                        strip(get_value(template, self.custom_access))=='free')
                     )               
                 )
         

@@ -16,29 +16,12 @@ from difflib import HtmlDiff
 import os
 from arguments import template_arg_mappings, get_value
 from ranking import sort_links
+from settings import *
+from ondiskcache import OnDiskCache
+from classifier import AcademicPaperFilter
 
-# App mount point, if the environment variable 'OABOT_DEV' is defined then
-# mount the application on '/', otherwise mount it under '/oabot'
-OABOT_APP_MOUNT_POINT = '/oabot'
-if os.environ.get('OABOT_DEV', None) is not None:
-    # Mount point is '/'
-    OABOT_APP_MOUNT_POINT = ''
-
-# the bot will not make any changes to these templates
-excluded_templates = ['cite arxiv', 'cite web', 'cite news', 'cite book']
-
-# Set the API key for the Zotero endpoint here.
-# This Zotero endpoint is just a version of 
-# https://github.com/zotero/translation-server
-# protected by an API key (otherwise it would allow
-# anyone use it to query any website, which is dangerous)
-#
-# Ask for an API key at  dev @ dissem . in
-# 
-ZOTERO_CACHE_API_KEY = open('zotero_cache_key.txt','r').read().strip()
-if not ZOTERO_CACHE_API_KEY:
-    raise ValueError('Please provide a Zotero cache API key '+
-                    '(email dev @ dissem . in to get one.)')
+urls_cache = OnDiskCache('urls_cache.pkl')
+paper_filter = AcademicPaperFilter()
 
 rg_re = re.compile('(https?://www\.researchgate\.net/)(.*)(publication/[0-9]*)_.*/links/[0-9a-f]*.pdf')
 
@@ -66,21 +49,33 @@ def get_oa_link(reference):
         'date':date,
         'doi':doi,
         }
-    req = requests.post('http://dissem.in/api/query', json=args)
+    req = requests.post('http://dissem.in/api/query',
+                        json=args,
+                        headers={'User-Agent':OABOT_USER_AGENT})
 
     resp = req.json()
 
     oa_url = None
+
     # Dissemin's full text detection is not always accurate, so
     # we manually go through each url for the paper and check
     # if it is free to read.
+    paper_object = resp.get('paper', {})
+    dissemin_pdf_url = paper_object.get('pdf_url')
     oa_url = None
-    candidate_urls = [
+    candidate_urls = sort_links([
         record.get('splash_url') for record in
-        resp.get('paper',{}).get('records',[])
-    ]
+        paper_object.get('records',[])
+    ])
     for url in sort_links(candidate_urls):
-	if check_free_to_read(url):
+        is_free = check_free_to_read(url):
+        if not is_free and url == dissemin_pdf_url:
+            # Dissemin thinks that there is a PDF somewhere,
+            # but Zotero fails to confirm it: skip, this
+            # looks dangerous.
+            return
+        if is_free:
+            # If we found a free URL, we are happy!
 	    return url
 
     # At this point Zotero failed to fetch a full text for all our urls.
@@ -94,7 +89,8 @@ def get_oa_link(reference):
     # Try with DOAI if the dissemin API did not return a full text link
     oa_url = None
     if doi:
-        r = requests.head('http://doai.io/'+doi)
+        r = requests.head('http://doai.io/'+doi,
+                        headers={'User-Agent':OABOT_USER_AGENT})
         if 'location' in r.headers and not 'doi.org/10.' in r.headers['location']:
             oa_url = r.headers['location']
 
@@ -114,16 +110,19 @@ def get_oa_link(reference):
 
     return oa_url
 
+@urls_cache.cached
 def check_free_to_read(url):
     """
-    Checks (with Zotero translators) that a given URL is free to read
+    Checks (with Zotero translators and CiteSeerX
+    paper filters) that a given URL is free to read
     """
     try:
 	    r = requests.post('http://doi-cache.dissem.in/zotero/query',
 			data={
 		    'url':url,
 		    'key':ZOTERO_CACHE_API_KEY,
-		    }, timeout=10)
+		    },
+		    headers={'User-Agent':OABOT_USER_AGENT})
 
 	    # Is a full text available there?
 	    items = None
@@ -138,7 +137,9 @@ def check_free_to_read(url):
 	    for item in items:
 		for attachment in item.get('attachments',[]):
 		    if attachment.get('mimeType') == 'application/pdf':
-			return True
+			# We found a candidate PDF!
+			# Check that it looks like a legit scholarly paper
+			return paper_filter.classify_url(attachment.get('url'))
     except requests.exceptions.Timeout:
 	pass
     return False
@@ -152,7 +153,8 @@ def check_metadata_with_crossref(doi, reference):
     # metadata. Crossref's metadata service is currently unavailable so
     # we use this cache.
     citeproc = requests.get('http://doi-cache.dissem.in/'+doi, headers=
-        {'Accept':'application/citeproc+json'}).json()
+        {'Accept':'application/citeproc+json',
+         'User-Agent':OABOT_USER_AGENT}).json()
 
     official_authors = citeproc.get('author')
     if not official_authors:
@@ -302,8 +304,15 @@ def add_oa_links_in_references(text):
                 break
 
             changed_templates.append((orig_template, change))
+<<<<<<< HEAD
    
     print ''
+=======
+    
+    # Flush the cache to the disk
+    urls_cache.save()
+
+>>>>>>> 4e782819efef1aaea0df89c493612431afe290b2
     return unicode(wikicode), changed_templates, stats
 
 
@@ -323,7 +332,8 @@ def get_page_over_api(page_name):
         'titles':page_name,
         'prop':'revisions',
         'rvprop':'content',
-        'format':'json',})
+        'format':'json',},
+        headers={'User-Agent':OABOT_USER_AGENT})
     js = r.json()
     page = js.get('query',{}).get('pages',{}).values()[0]
     pagid = page.get('pageid', -1)
