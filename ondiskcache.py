@@ -52,6 +52,10 @@ class OnDiskCache(object):
     def set(self, url, val):
         self.store[url] = (datetime.date.today(), val)
 
+    def print_contents(self):
+        for k in self.store:
+            print '\t'.join([unicode(self.store[k][1]), k])
+
     def cached(self, fun):
         def new_fun(arg):
             cur_val = self.get(arg)

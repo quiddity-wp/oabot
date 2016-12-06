@@ -86,6 +86,9 @@ def get_oa_link(reference):
     if resp.get('paper',{}).get('pdf_url'):
         return
 
+    return
+    # TODO temporary: the rest is bypassed for now.
+
     # Try with DOAI if the dissemin API did not return a full text link
     oa_url = None
     if doi:
@@ -122,6 +125,7 @@ def check_free_to_read(url):
 		    'url':url,
 		    'key':ZOTERO_CACHE_API_KEY,
 		    },
+		    timeout=10,
 		    headers={'User-Agent':OABOT_USER_AGENT})
 
 	    # Is a full text available there?
@@ -548,17 +552,23 @@ def generate_html_for_dry_run(page_name, refresh_url=None):
                 'This is a simulation, no edit was performed. (<a href="%s&refresh=true">refresh</a>)' % refresh_url)
     return render_html_template(html, page_name)
 
-def test_run(max_edits=50):
+def test_run(max_edits=50, starting_page=None):
     import pywikibot
     site = pywikibot.Site()
     site.login()
     cs1 = pywikibot.Page(site, 'Module:Citation/CS1')
     count = 0
     print "requesting pages"
+    starting_page_seen = starting_page is None
     for p in cs1.embeddedin(namespaces=[0]):
 	print p.title()
+	if p.title() == starting_page:
+	   starting_page_seen = True
+	   continue
         if count >= max_edits:
             break
+	if not starting_page_seen:
+	    continue
         r = perform_edit(p) 
         if r and r[1]['changed']:
             count += 1

@@ -65,6 +65,9 @@ class AcademicPaperFilter(object):
         if status != 0:
             raise RunnableError('PDFBox returned error status code {0}.\nPossible error:\n{1}'.format(status, stderr))
 
+	# TODO temporary
+	return True
+
         # We can use result from PDFBox directly, no manipulation needed
         pdf_plain_text = stdout
         with open(os.path.join(temp_dir, 'file.txt'), 'w') as pdf_text_file:
