@@ -99,9 +99,9 @@ def get_oa_link(reference):
 
     if not oa_url:
         return
-    
+
     # Only keep results from researchgate.net or academia.edu from DOAI
-    if not (oa_url.startswith('https://www.researchgate.net') or 
+    if not (oa_url.startswith('https://www.researchgate.net') or
         oa_url.startswith('https://www.academia.edu')):
         return
 
@@ -163,13 +163,13 @@ def check_metadata_with_crossref(doi, reference):
     official_authors = citeproc.get('author')
     if not official_authors:
         return False
-    
+
     try:
         official_last_names = [
             a.get('family')
             for a in official_authors
             ]
-        
+
         our_last_names = [
             a.get('last')
             for a in reference['Authors']
@@ -181,12 +181,12 @@ def check_metadata_with_crossref(doi, reference):
         return normalize(official_last_names) == normalize(our_last_names)
     except KeyError, ValueError:
         return False
-        
+
 
 def add_oa_links_in_references(text):
     """
     Main function of the bot.
-    
+
     :param text: the wikicode of the page to edit
     :returns: a tuple: the new wikicode, the list of changed templates,
             and edit statistics
@@ -209,7 +209,7 @@ def add_oa_links_in_references(text):
         'url_present':0,
         # no change because the template uses |registration= or
         # |subscription=
-        'registration_subscription':0,        
+        'registration_subscription':0,
         }
 
     for template in wikicode.filter_templates():
@@ -229,9 +229,9 @@ def add_oa_links_in_references(text):
                 if argmap.present_and_free(template):
                     already_oa_param = argmap.name
                     already_oa_value = argmap.get(template)
-            
+
             change = {}
-        
+
             # If so, we just skip it - no need for more free links
             if already_oa_param:
                 change['new_'+already_oa_param] = (already_oa_value,'#')
@@ -243,7 +243,7 @@ def add_oa_links_in_references(text):
             # |subscription= , let's assume that the editor tried to find
             # a better version themselves so it's not worth trying.
             if ((get_value(template, 'subscription')
-                or get_value(template, 'registration')) in 
+                or get_value(template, 'registration')) in
                 ['yes','y','true']):
                 stats['registration_subscription'] += 1
                 changed_templates.append((orig_template,
@@ -274,16 +274,18 @@ def add_oa_links_in_references(text):
                 current_value = argmap.get(template)
                 if current_value:
                     change['new_'+argmap.name] = (match,link)
-                    if argmap.custom_access:
-                        stats['changed'] += 1
-                        template.add(argmap.custom_access, 'free')
-		    else:
-			stats['url_present'] += 1
-                    	# don't change anything
+
+                    #if argmap.custom_access:
+                    #    stats['changed'] += 1
+                    #    template.add(argmap.custom_access, 'free')
+		    #else:
+
+                    stats['url_present'] += 1
+                    # don't change anything
                     break
 
                 # If the parameter is not present yet, add it
-                
+
                 # -- Special case for DOIs
                 # If we are trying to add a DOI, that means
                 # the matching was done without DOI, solely based
@@ -303,14 +305,15 @@ def add_oa_links_in_references(text):
                 else:
                     template.add(argmap.name, match)
                     change[argmap.name] = (match,link)
-		    if argmap.custom_access:
-			template.add(argmap.custom_access, 'free')
+
+		    #if argmap.custom_access:
+		    #	template.add(argmap.custom_access, 'free')
                 break
 
             changed_templates.append((orig_template, change))
-   
+
     print ''
-    
+
     # Flush the cache to the disk
     urls_cache.save()
 
@@ -397,7 +400,7 @@ def perform_edit(page):
                             stats['links_added'])
         if stats['links_added'] > 1:
             edit_message += 's'
-    
+
     icons_added = stats['changed'] - stats['links_added']
     if icons_added > 0:
         if stats['links_added']:
@@ -405,14 +408,14 @@ def perform_edit(page):
         edit_message += ('%d access icon' % icons_added)
         if icons_added > 1:
             edit_message += 's'
-    
+
     edit_message += ' in citations. [[User talk:OAbot|Feedback]]'
 
     print edit_message
 
     # Perform the edit
     page.save(edit_message)
-    
+
     # Get our new revision id
     page.get(force=True)
     revid = page.latest_revision_id
@@ -430,7 +433,7 @@ def perform_edit(page):
                 '<a href="%s">Edit performed</a>.' %
                 diffurl)
     html = render_html_template(html, page.title())
-    
+
     html_fname = 'edits/%s_%d_%s.html' % (datetime.utcnow().isoformat(),
         oldid,
         urllib.quote(remove_diacritics(page.title(underscore=True))))
@@ -569,7 +572,7 @@ def test_run(max_edits=50, starting_page=None):
             break
 	if not starting_page_seen:
 	    continue
-        r = perform_edit(p) 
+        r = perform_edit(p)
         if r and r[1]['changed']:
             count += 1
 

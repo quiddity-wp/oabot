@@ -25,9 +25,6 @@ class ArgumentMapping(object):
         :para alternate_names: alternate parameter slots to look out for - we will not add any identifier if one of them is non-empty.
         :para group_id: position of the identifier in the regex
         :para always_free: the parameter denotes links which are always free
-        :para custom_access: name of the custom access parameter
-                    associated to this one (if any). If "True", then it will be
-                    name+'-access'
         """
         self.name = name
         self.regex = re.compile(regex)
@@ -35,9 +32,6 @@ class ArgumentMapping(object):
         self.alternate_names = alternate_names
         self.group_id = group_id
 	self.always_free = always_free
-        if custom_access and type(custom_access) == bool:
-            custom_access = name+'-access'
-        self.custom_access = custom_access
 
     def get(self, template):
         """
@@ -66,12 +60,9 @@ class ArgumentMapping(object):
             return s.strip() if s else None
         return (
                 self.present(template) and
-                    (self.always_free or
-                    (self.custom_access and
-                        strip(get_value(template, self.custom_access))=='free')
-                    )               
+                    self.always_free
                 )
-        
+
 
     def extract(self, url):
         """
@@ -100,12 +91,12 @@ template_arg_mappings = [
     ArgumentMapping(
         'doi',
         r'https?://(dx\.)?doi\.org/([^ ]*)',
-        group_id=2,
-        custom_access=True),
+        group_id=2),
+#        custom_access=True),
     ArgumentMapping(
         'hdl',
-        r'https?://hdl\.handle\.net/([^ ]*)',
-        custom_access=True),
+        r'https?://hdl\.handle\.net/([^ ]*)'),
+#        custom_access=True),
     ArgumentMapping(
         'arxiv',
         r'https?://arxiv\.org/abs/(.*)',
