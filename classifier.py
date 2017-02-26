@@ -1,16 +1,15 @@
 # -*- encoding: utf-8 -*-
 from __future__ import unicode_literals
 
-# Most of this code is taken from the CiteSeerX extractor
-# Apache License 2.0
-# https://github.com/SeerLabs/new-csx-extractor
-
 from settings import *
 import subprocess32 as subprocess
 import tempfile
 import shutil
 import os
 import requests
+import PyPDF2
+from PyPDF2.utils import PyPdfError
+from StringIO import StringIO
 
 class RunnableError(Exception):
     pass
@@ -25,10 +24,31 @@ class AcademicPaperFilter(object):
         try:
             r = requests.get(url, headers={'User-Agent':
                     OABOT_USER_AGENT})
-            return self.looks_legit(r.content)
+            return self.check_nb_pages(r.content)
         except requests.exceptions.RequestException as e:
             print e
             return False
+
+   def check_nb_pages(self, data):
+        """
+        Does this PDF contain enough pages?
+        """
+        try:
+            s_io = StringIO(data)
+            reader = PyPDF2.PdfFileReader(s_io)
+            num_pages = reader.getNumPages()
+            print("num pages: %d" % num_pages)
+            return num_pages > 2
+        except PyPdfError as e:
+            return False
+
+   #######################################################
+   ##### The rest of this class is not currently used ####
+   #######################################################
+
+    # Most of this code is taken from the CiteSeerX extractor
+    # Apache License 2.0
+    # https://github.com/SeerLabs/new-csx-extractor
 
    def looks_legit(self, data):
         """
@@ -55,7 +75,7 @@ class AcademicPaperFilter(object):
         file_path = os.path.join(temp_dir, 'file.pdf')
         with open(file_path, 'wb') as f:
             f.write(data)
-        
+
         try:
             command_args = ['java', '-jar', PDFBOX_JAR_PATH, 'ExtractText', '-console', '-encoding', 'UTF-8', file_path]
             status, stdout, stderr = external_process(command_args, timeout=30)
@@ -72,7 +92,7 @@ class AcademicPaperFilter(object):
         pdf_plain_text = stdout
         with open(os.path.join(temp_dir, 'file.txt'), 'w') as pdf_text_file:
             pdf_text_file.write(pdf_plain_text)
-        
+
         ## Then, run the classifier
 
         shutil.copy(FILTER_ACL_PATH, os.path.join(temp_dir, 'acl'))
@@ -145,5 +165,5 @@ if __name__ == '__main__':
     import sys
     f = AcademicPaperFilter()
     #pdf_file = open(sys.argv[1], 'rb').read()
-    #print f.looks_legit(pdf_file) 
+    #print f.looks_legit(pdf_file)
     print f.classify_url(sys.argv[1])

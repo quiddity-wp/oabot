@@ -43,6 +43,10 @@ def get_oa_link(reference):
         if 'first' not in authors[i]:
             authors[i] = {'plain':authors[i].get('last','')}
 
+    # Currently, we disable the bot for citations without DOIs
+    if not doi:
+        return
+
     args = {
         'title':title,
         'authors':authors,
@@ -85,33 +89,6 @@ def get_oa_link(reference):
     # is free to read (but we failed to detect that with Zotero).
     if resp.get('paper',{}).get('pdf_url'):
         return
-
-    return
-    # TODO temporary: the rest is bypassed for now.
-
-    # Try with DOAI if the dissemin API did not return a full text link
-    oa_url = None
-    if doi:
-        r = requests.head('http://doai.io/'+doi,
-                        headers={'User-Agent':OABOT_USER_AGENT})
-        if 'location' in r.headers and not 'doi.org/10.' in r.headers['location']:
-            oa_url = r.headers['location']
-
-    if not oa_url:
-        return
-
-    # Only keep results from researchgate.net or academia.edu from DOAI
-    if not (oa_url.startswith('https://www.researchgate.net') or
-        oa_url.startswith('https://www.academia.edu')):
-        return
-
-    # ResearchGate PDF links actually lead to HTML, so let's make them
-    # point to the splash page directly
-    rg_match = rg_re.match(oa_url)
-    if rg_match:
-        oa_url = rg_match.group(1)+rg_match.group(3)
-
-    return oa_url
 
 @urls_cache.cached
 def check_free_to_read(url):
