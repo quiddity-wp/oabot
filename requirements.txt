@@ -4,3 +4,4 @@ requests
 docopt
 unidecode
 subprocess32
+pypdf2
