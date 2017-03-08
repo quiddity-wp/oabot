@@ -53,7 +53,7 @@ def get_oa_link(reference):
         'date':date,
         'doi':doi,
         }
-    req = requests.post('http://dissem.in/api/query',
+    req = requests.post('http://old.dissem.in/api/query',
                         json=args,
                         headers={'User-Agent':OABOT_USER_AGENT})
 
