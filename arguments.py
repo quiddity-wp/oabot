@@ -85,10 +85,6 @@ class UrlArgumentMapping(ArgumentMapping):
 
 template_arg_mappings = [
     ArgumentMapping(
-        'biorxiv', r'https?://(dx\.)?doi\.org/10\.1101/([^ ]*)',
-        group_id=2,
-        always_free=True),
-    ArgumentMapping(
         'doi',
         r'https?://(dx\.)?doi\.org/([^ ]*)',
         group_id=2),
