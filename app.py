@@ -1,91 +1,105 @@
-#!/usr/bin/env python
-# -*- encoding: utf-8 -*-
-"""OAbot web interface
+# -*- coding: utf-8 -*-
+#
+# This file is mostly taken from the Tool Labs Flask + OAuth WSGI tutorial
+# https://wikitech.wikimedia.org/wiki/Help:Tool_Labs/My_first_Flask_OAuth_tool
+#
+# Copyright (C) 2017 Bryan Davis and contributors
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free
+# Software Foundation, either version 3 of the License, or (at your
+# option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for
+# more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-Usage:
-  app.py [-p PORT| --port PORT]
-  app.py (-h | --help)
-  app.py --version
+import flask
+import os
+import yaml
+import mwoauth
+from settings import OABOT_APP_MOUNT_POINT
 
-Options:
-  -p, --port PORT   Mount the application on port PORT [default: 8000].
-  --version         Show version.
-  -h --help         Show this screen.
+app = flask.Flask(__name__)
 
-"""
-__version__ = '0.0.1'
+__dir__ = os.path.dirname(__file__)
+app.config.update(
+    yaml.safe_load(open(os.path.join(__dir__, 'config.yaml'))))
 
-from bottle import route, run, static_file, request, default_app
-from docopt import docopt
-from main import *
-import os.path
-from os import walk
-import md5
-import urllib
-from main import OABOT_APP_MOUNT_POINT
+@app.route('/')
+def index():
+    context = {
+        'username' : flask.session.get('username', None),
+        'OABOT_APP_MOUNT_POINT' : OABOT_APP_MOUNT_POINT,
+    }
+    return flask.render_template("index.html", **context)
 
-@route('/')
-def home():
-    with open('templates/home.html', 'r') as f:
-        homepage = f.read()
+@app.route('/login')
+def login():
+    """Initiate an OAuth login.
 
-    homepage = homepage.replace('OABOT_APP_MOUNT_POINT', OABOT_APP_MOUNT_POINT)
-
-    # list recent edits
-    page_name_re = re.compile(r'^[^_]*_[0-9]*_(.*)\.html')
-    edits = '<ul>\n'
-    for (_, _, fnames) in walk('edits/'):
-        recent = sorted(fnames, reverse=True)[:10]
-        for fname in recent:
-            m = page_name_re.match(fname)
-            if not m:
-                continue
-            page_name = m.group(1).replace('_',' ')
-            edits += '<li><a href="edits/%s">%s</a></li>\n' % (
-                    urllib.quote(fname),
-                    urllib.unquote(page_name))
-        break
-    edits += '</ul>\n'
-    homepage = homepage.replace('RECENT_EDITS', edits)
-
-    return homepage
-
-
-@route('/css/<fname>')
-def css(fname):
-    return static_file(fname, root='css/')
-
-@route('/edits/<fname>')
-def edits(fname):
-    return static_file(fname, root='edits/')
-
-def cached(fun, force, *args):
-    r = md5.md5()
-    r.update(args[0].encode('utf-8'))
-    h = r.hexdigest()
-    cache_fname = 'cache/%s.html' % h
-    if not force and os.path.isfile(cache_fname):
-	with codecs.open(cache_fname, 'r', 'utf-8') as f:
-	    val = f.read()
-	return val
+    Call the MediaWiki server to get request secrets and then redirect
+the
+    user to the MediaWiki server to sign the request.
+    """
+    consumer_token = mwoauth.ConsumerToken(
+        app.config['CONSUMER_KEY'], app.config['CONSUMER_SECRET'])
+    try:
+        redirect, request_token = mwoauth.initiate(
+            app.config['OAUTH_MWURI'], consumer_token)
+    except Exception:
+        app.logger.exception('mwoauth.initiate failed')
+        return flask.redirect(flask.url_for('index'))
     else:
-	value = fun(*args)
-	with codecs.open(cache_fname, 'w', 'utf-8') as f:
-	    f.write(value)
-	return value
-    
-@route('/process')
-def process():
-    page_name = request.query.get('name').decode('utf-8')
-    force = request.query.get('refresh') == 'true'
-    tpl = cached(generate_html_for_dry_run, force, page_name, request.url)
-    return tpl
+        flask.session['request_token'] = dict(zip(
+            request_token._fields, request_token))
+        return flask.redirect(redirect)
 
-if __name__ == '__main__':
-    arguments = docopt(__doc__, version=__version__)
 
-    port = arguments['--port']
+@app.route('/oauth-callback')
+def oauth_callback():
+    """OAuth handshake callback."""
+    if 'request_token' not in flask.session:
+        flask.flash(u'OAuth callback failed. Are cookies disabled?')
+        return flask.redirect(flask.url_for('index'))
 
-    run(host='localhost', port=port, debug=True)
+    consumer_token = mwoauth.ConsumerToken(
+        app.config['CONSUMER_KEY'], app.config['CONSUMER_SECRET'])
 
-app = application = default_app()
+    try:
+        access_token = mwoauth.complete(
+            app.config['OAUTH_MWURI'],
+            consumer_token,
+            mwoauth.RequestToken(**flask.session['request_token']),
+            flask.request.query_string)
+
+        identity = mwoauth.identify(
+            app.config['OAUTH_MWURI'], consumer_token, access_token)
+    except Exception as e:
+        app.logger.exception('OAuth authentication failed')
+
+    else:
+        flask.session['access_token'] = dict(zip(
+            access_token._fields, access_token))
+        flask.session['username'] = identity['username']
+
+    return flask.redirect(flask.url_for('index'))
+
+
+@app.route('/logout')
+def logout():
+    """Log the user out by clearing their session."""
+    flask.session.clear()
+    return flask.redirect(flask.url_for('index'))
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0')
+
