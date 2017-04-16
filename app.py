@@ -26,10 +26,12 @@ import flask
 import os
 import yaml
 import mwoauth
-from settings import OABOT_APP_MOUNT_POINT
 import requests
 import json
+import md5
+import codecs
 from requests_oauthlib import OAuth1
+from main import generate_html_for_dry_run
 
 app = flask.Flask(__name__)
 
@@ -41,7 +43,7 @@ app.config.update(
 def index():
     context = {
         'username' : flask.session.get('username', None),
-        'OABOT_APP_MOUNT_POINT' : OABOT_APP_MOUNT_POINT,
+        'recent_edits' : [],
     }
     return flask.render_template("index.html", **context)
 
@@ -103,6 +105,28 @@ def edit_wiki_page(page_name, content, summary=None):
     }, auth=auth)
     r.raise_for_status()
 	
+def cached(fun, force, *args):
+    r = md5.md5()
+    r.update(args[0].encode('utf-8'))
+    h = r.hexdigest()
+    cache_fname = 'cache/%s.html' % h
+    if not force and os.path.isfile(cache_fname):
+	with codecs.open(cache_fname, 'r', 'utf-8') as f:
+	    val = f.read()
+	return val
+    else:
+	value = fun(*args)
+	with codecs.open(cache_fname, 'w', 'utf-8') as f:
+	    f.write(value)
+	return value
+    
+@app.route('/process')
+def process():
+    page_name = flask.request.args.get('name')
+    force = flask.request.args.get('refresh') == 'true'
+    tpl = cached(generate_html_for_dry_run, force, page_name, flask.request.url)
+    return tpl
+
 
 @app.route('/login')
 def login():
@@ -161,6 +185,18 @@ def logout():
     """Log the user out by clearing their session."""
     flask.session.clear()
     return flask.redirect(flask.url_for('index'))
+
+@app.route('/css/<path:path>')
+def send_css(path):
+    try:
+	    return flask.send_from_directory('css', path)
+    except Exception as e:
+	with open('exception', 'w') as f:
+	    f.write(str(type(e))+' '+str(e))
+
+@app.route('/edits/<path:path>')
+def send_edits(path):
+    return flask.send_from_directory('edits', path)
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0')

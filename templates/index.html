@@ -1,17 +1,47 @@
-<!DOCTYPE HTML>
+<!doctype html>
 <html>
     <head>
-        <title>Flask OAbot</title>
+        <title>OAbot</title>
+        <link rel="stylesheet" href="{{ url_for('send_css', path='style.css') }}" />
     </head>
     <body>
-	<h2>OAbot is being rewritten. Please ignore what you see on this page</h2>
-        {% if username %}
-        <p>Hello {{ username }}!</p>
-	<p><a href="{{ url_for('test_edit') }}">perform a test edit</a></p>
-        <p><a href="{{ url_for('logout') }}">logout</a></p>
-        {% else %}
-        <p>{{ greeting }}</p>
-        <p><a href="{{ url_for('login') }}">login</a></p>
-        {% endif %}
+        <h2>OAbot</h2>
+        <p>
+            <form action="{{ url_for('process') }}" method="get">
+                <label for="name">Page name: </label>
+                <input type="text" name="name" id="nameInput" />
+                <input type="submit" value="See the proposed changes" />
+            </form>
+        </p>
+
+        <p id="description">
+        This scripts looks for open access versions of references in Wikipedia articles. If no URL is provided in the citation template, it adds one that points to an open access repository where the reference is available (if we can find one).
+	<br /><br />
+	{% if not username %}
+	If you <a href="{{ url_for('login') }}">login with your Wikipedia account</a>,
+	{% else %}
+	You are logged in as <a href="https://en.wikipedia.org/wiki/User:{{ username }}">{{ username }}</a>
+	(<a href="{{ url_for('logout') }}">logout</a>), so
+	{% endif %}
+	you will be able to review the changes proposed by this tool on any page of the English Wikipedia,
+	and perform them with your account.
+	</p>	
+	
+	<p>
+	Edits recently performed with this tool
+	<ul>
+	{% for edit in recent_edits %}
+           <li><a href="{{ edit.0 }}">{{ edit.1 }}</a></li>
+	{% endfor %}
+	</ul>
+	See <a
+	    href="https://en.wikipedia.org/w/index.php?title=Special:RecentChanges&tagfilter=OAuth+CID:+817">the
+	    complete list on Wikipedia</a>.
+	</p>
+
+	<p><a href="https://github.com/dissemin/oabot">GitHub project</a> - 
+           run by <a href="https://en.wikipedia.org/wiki/User_talk:Pintoch">Pintoch</a>
+	 </p>
     </body>
 </html>
+
