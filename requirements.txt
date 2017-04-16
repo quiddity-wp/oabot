@@ -8,3 +8,4 @@ pypdf2
 flask
 pyyaml
 mwoauth
+requests_oauthlib

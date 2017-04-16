@@ -27,6 +27,9 @@ import os
 import yaml
 import mwoauth
 from settings import OABOT_APP_MOUNT_POINT
+import requests
+import json
+from requests_oauthlib import OAuth1
 
 app = flask.Flask(__name__)
 
@@ -41,6 +44,65 @@ def index():
         'OABOT_APP_MOUNT_POINT' : OABOT_APP_MOUNT_POINT,
     }
     return flask.render_template("index.html", **context)
+
+authenticate = {}
+usernames = { 'wikipedia': {} }
+
+@app.route('/test-edit')
+def test_edit():
+    """
+    Perform a test edit
+    """
+    global authenticate
+    global usernames
+    try:
+	    access_token = flask.session.get('access_token', None)
+	    username = flask.session.get('username', None)
+	    if not access_token or not username:
+		return flask.redirect(flask.url_for('login'))
+	    authenticate = {}
+	    authenticate['en.wikipedia.org'] = (
+		app.config['CONSUMER_KEY'],
+		app.config['CONSUMER_SECRET'],
+		access_token['key'],
+		access_token['secret'])
+	    usernames['wikipedia']['en'] = username
+	    
+            edit_wiki_page('User:%s/sandbox' % username, 'just testing',
+			summary='just testing')
+	
+    except Exception as e:
+	with open('exception', 'w') as f:
+		f.write(str(type(e))+' '+str(e))
+    return flask.redirect(flask.url_for('index'))
+
+def edit_wiki_page(page_name, content, summary=None):
+    access_token = flask.session.get('access_token', None)
+    auth = OAuth1(
+		app.config['CONSUMER_KEY'],
+		app.config['CONSUMER_SECRET'],
+		access_token['key'],
+		access_token['secret'])
+
+    # Get token
+    r = requests.get('https://en.wikipedia.org/w/api.php', params={
+	'action':'query',
+	'meta':'tokens',
+        'format': 'json',
+    }, auth=auth)
+    r.raise_for_status()
+    token = r.json()['query']['tokens']['csrftoken']
+    
+    r = requests.post('https://en.wikipedia.org/w/api.php', data={
+	'action':'edit',
+        'title': page_name,
+	'text': content,
+        'summary': summary,
+        'format': 'json',
+        'token': token,
+    }, auth=auth)
+    r.raise_for_status()
+	
 
 @app.route('/login')
 def login():
