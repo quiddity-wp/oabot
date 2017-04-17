@@ -15,16 +15,16 @@
             </form>
         </p>
 
-        <h2>Results for page <a href="{{ url_for('process', name=page_name) }}">{{ page_name }}</a></h2>
+        <h2>Results for page <a href="https://en.wikipedia.org/wiki/{{ page_name }}">{{ page_name }}</a></h2>
         <p>Processed: {{ utcnow }} (<a href="{{ url_for('process', name=page_name, refresh='true') }}">refresh</a>)</p>
 
+        {% if proposed_edits %}
         <h3>Template details</h3>
         <form id="edit-form" action="{{ url_for('perform_edit') }}" method="POST"> 
         <input type="hidden" name="name" value="{{ page_name }}" />
         <ol>
 
         {%  for template_edit in proposed_edits %}
-            {% if not template_edit.classification == 'ignored' %}
             <li id="{{ template_edit.index +1 }}">
             <pre>{{ template_edit.orig_string }}</pre>
             {% if template_edit.proposed_link %}
@@ -32,9 +32,9 @@
             {% endif %}
             <p>Change: <input type="text" size="100" name="{{ template_edit.orig_hash }}" value="{{ template_edit.proposed_change }}" /></p>
             </li>
-            {% endif %}
         {% endfor %}
         </ol>
+
         <p><span class="edit">
         <input type="submit" value="Perform edit" /> with summary <input type="text" size="50" name="summary" value="Added free to read links in citations" /></span></p>
         </form>
@@ -51,6 +51,10 @@
         </script>
         <div id="preview-diff">
         </div>
+
+        {% else %}
+        <p>No edit proposed for this page.</p>
+        {% endif %}
 
         <p><a href="{{ url_for('index') }}">&#8592; Back</a></p>
         <p><a href="https://github.com/wetneb/oabot">Source code</a></p>

@@ -75,37 +75,6 @@ def index():
     }
     return flask.render_template("index.html", **context)
 
-authenticate = {}
-usernames = { 'wikipedia': {} }
-
-@app.route('/test-edit')
-def test_edit():
-    """
-    Perform a test edit
-    """
-    global authenticate
-    global usernames
-    try:
-	    access_token = flask.session.get('access_token', None)
-	    username = flask.session.get('username', None)
-	    if not access_token or not username:
-		return flask.redirect(flask.url_for('login'))
-	    authenticate = {}
-	    authenticate['en.wikipedia.org'] = (
-		app.config['CONSUMER_KEY'],
-		app.config['CONSUMER_SECRET'],
-		access_token['key'],
-		access_token['secret'])
-	    usernames['wikipedia']['en'] = username
-	    
-            edit_wiki_page('User:%s/sandbox' % username, 'just testing',
-			summary='just testing')
-	
-    except Exception as e:
-	with open('exception', 'w') as f:
-		f.write(str(type(e))+' '+str(e))
-    return flask.redirect(flask.url_for('index'))
-
 def edit_wiki_page(page_name, content, summary=None):
     access_token = flask.session.get('access_token', None)
     auth = OAuth1(
@@ -153,8 +122,10 @@ def process():
     page_name = flask.request.args.get('name')
     force = flask.request.args.get('refresh') == 'true'
     text = main.get_page_over_api(page_name)
+    all_templates = main.add_oa_links_in_references(text)
+    filtered = filter(lambda e: e.proposed_change, all_templates)
     context = {
-	'proposed_edits': main.add_oa_links_in_references(text),
+	'proposed_edits': filtered,
 	'page_name' : page_name,
         'utcnow': datetime.datetime.utcnow(),
     } 
@@ -202,7 +173,6 @@ def perform_edit():
 
     # Save the page
     if change_made:
-        new_text = unicode(wikicode)
         edit_wiki_page(page_name, new_text, summary)
         return flask.redirect(flask.url_for('index', success='true'))
     else:
