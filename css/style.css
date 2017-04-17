@@ -71,3 +71,14 @@ body {
 #description {
 	max-width: 500px;
 }
+.success {
+    background-color: #77DD77;
+    padding: 5px;
+    border: 1px solid #888;
+}
+.edit {
+    background-color: rgb(245, 95, 95);
+    border: 1px solid #888;
+    padding: 5px;
+}
+    

@@ -30,8 +30,10 @@ import requests
 import json
 import md5
 import codecs
+import datetime
 from requests_oauthlib import OAuth1
-from main import generate_html_for_dry_run
+import mwparserfromhell
+import main
 
 app = flask.Flask(__name__)
 
@@ -39,11 +41,36 @@ __dir__ = os.path.dirname(__file__)
 app.config.update(
     yaml.safe_load(open(os.path.join(__dir__, 'config.yaml'))))
 
+class InvalidUsage(Exception):
+    status_code = 400
+
+    def __init__(self, message, status_code=None):
+        Exception.__init__(self)
+        self.message = message
+        if status_code is not None:
+            self.status_code = status_code
+        self.payload = payload
+
+@app.errorhandler(InvalidUsage)
+def handle_invalid_usage(error):
+    response = flask.render_template("error.html", message=error.message)
+    response.status_code = error.status_code
+    return response
+
+@app.errorhandler(Exception)
+def handle_invalid_usage(error):
+    import traceback
+    tb = traceback.format_exc().replace('\n','<br/>\n')
+    response = flask.render_template("error.html", message=
+        str(type(error))+' '+str(error)+'\n<br/>\n'+tb)
+    return response
+
+
 @app.route('/')
 def index():
     context = {
         'username' : flask.session.get('username', None),
-        'recent_edits' : [],
+        'success' : flask.request.args.get('success'),
     }
     return flask.render_template("index.html", **context)
 
@@ -105,9 +132,9 @@ def edit_wiki_page(page_name, content, summary=None):
     }, auth=auth)
     r.raise_for_status()
 	
-def cached(fun, force, *args):
+def cached(fun, force, key, *args, **kwargs):
     r = md5.md5()
-    r.update(args[0].encode('utf-8'))
+    r.update(key.encode('utf-8'))
     h = r.hexdigest()
     cache_fname = 'cache/%s.html' % h
     if not force and os.path.isfile(cache_fname):
@@ -115,7 +142,7 @@ def cached(fun, force, *args):
 	    val = f.read()
 	return val
     else:
-	value = fun(*args)
+	value = fun(*args, **kwargs)
 	with codecs.open(cache_fname, 'w', 'utf-8') as f:
 	    f.write(value)
 	return value
@@ -124,9 +151,52 @@ def cached(fun, force, *args):
 def process():
     page_name = flask.request.args.get('name')
     force = flask.request.args.get('refresh') == 'true'
-    tpl = cached(generate_html_for_dry_run, force, page_name, flask.request.url)
-    return tpl
+    text = main.get_page_over_api(page_name)
+    context = {
+	'proposed_edits': main.add_oa_links_in_references(text),
+	'page_name' : page_name,
+        'utcnow': datetime.datetime.utcnow(),
+    } 
+    return cached(flask.render_template, force, page_name, "change.html", **context)
+    #return tpl
 
+@app.route('/perform-edit', methods=['POST'])
+def perform_edit():
+    data = flask.request.form
+
+    # Check we are logged in
+    access_token =flask.session.get('access_token', None)
+    if not access_token:
+        return flask.redirect(flask.url_for('login'))
+
+    page_name = data.get('name')
+    if not page_name:
+        raise InvalidUsage('Page title is required')
+    summary = data.get('summary')
+    if not summary:
+        raise InvalidUsage('No summary provided')
+        
+    # Get the page
+    text = main.get_page_over_api(page_name)
+    
+    # Perform each edit
+    wikicode = mwparserfromhell.parse(text)
+    for template in wikicode.filter_templates():
+        edit = main.TemplateEdit(template)
+        if edit.classification == 'ignored':
+            continue
+        proposed_addition = data.get(edit.orig_hash)
+        if proposed_addition:
+            try:
+                edit.update_template(proposed_addition)
+            except ValueError:
+                pass # TODO report to the user
+
+    # Save the page
+    new_text = unicode(wikicode)
+    edit_wiki_page(page_name, new_text, summary)
+
+    return flask.redirect(flask.url_for('index', success='true'))
 
 @app.route('/login')
 def login():

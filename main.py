@@ -19,11 +19,125 @@ from ranking import sort_links
 from settings import *
 from ondiskcache import OnDiskCache
 from classifier import AcademicPaperFilter
+import md5
 
 urls_cache = OnDiskCache('urls_cache.pkl')
 paper_filter = AcademicPaperFilter()
 
 rg_re = re.compile('(https?://www\.researchgate\.net/)(.*)(publication/[0-9]*)_.*/links/[0-9a-f]*.pdf')
+
+
+class TemplateEdit(object):
+    """
+    This represents a proposed change (possibly empty)
+    on a citation template
+    """
+    def __init__(self, tpl):
+	"""
+	:param tpl: a mwparserfromhell template: the original template
+		that we want to change
+	"""
+	self.template = tpl
+	self.orig_string = unicode(self.template)
+	r = md5.md5()
+	r.update(self.orig_string.encode('utf-8'))
+	self.orig_hash = r.hexdigest()
+	self.classification = None
+        self.conflicting_value = ''
+	self.proposed_change = ''
+        self.proposed_link = None
+
+    def propose_change(self):
+	"""
+	Fetches open urls for that template and proposes a change
+	"""
+        reference = parse_citation_template(self.template)
+        tpl_name = unicode(self.template.name).lower().strip()
+        if not reference or tpl_name in excluded_templates:
+	    self.classification = 'ignored'
+            return
+	
+        sys.stdout.write('.')
+        sys.stdout.flush()
+
+        # First check if there is already a link to a full text
+        # in the citation.
+        already_oa_param = None
+        already_oa_value = None
+        for argmap in template_arg_mappings:
+            if argmap.present_and_free(self.template):
+                already_oa_param = argmap.name
+                already_oa_value = argmap.get(self.template)
+
+        change = {}
+
+        # If so, we just skip it - no need for more free links
+        if already_oa_param:
+            self.classification = 'already_open'
+            self.conflicting_value = already_oa_value
+            return
+
+        # If the template is marked with |registration= or
+        # |subscription= , let's assume that the editor tried to find
+        # a better version themselves so it's not worth trying.
+        if ((get_value(self.template, 'subscription')
+            or get_value(self.template, 'registration')) in
+            ['yes','y','true']):
+            self.classification = 'registration_subscription'
+            return
+
+        # Otherwise, try to get a free link
+        link = get_oa_link(reference)
+        if not link:
+            self.classification = 'not_found'
+            return
+
+        # We found an OA link!
+        self.proposed_link = link
+
+        # Try to match it with an argument
+        argument_found = False
+        for argmap in template_arg_mappings:
+            # Did the link we have got match that argument place?
+            match = argmap.extract(link)
+            if not match:
+                continue
+
+            argument_found = True
+
+            # If this parameter is already present in the template:
+            current_value = argmap.get(self.template)
+            if current_value:
+                change['new_'+argmap.name] = (match,link)
+
+                #if argmap.custom_access:
+                #    stats['changed'] += 1
+                #    template.add(argmap.custom_access, 'free')
+                #else:
+
+                self.classification = 'already_present'
+                # don't change anything
+                break
+
+            # If the parameter is not present yet, add it
+            self.classification = 'link_added'
+
+            if argmap.is_id:
+                self.proposed_change = 'id={{%s|%s}}' % (argmap.name,match)
+            else:
+                self.proposed_change = '%s=%s' % (argmap.name,match)
+            break
+    
+    def update_template(self, change):
+        """
+        Given a change of the form "param=value", add it to the template
+        """
+        bits = change.split('=')
+        if len(bits) != 2:
+            raise ValueError('invalid change')
+        param = bits[0].lower().strip()
+        value = bits[1].strip()
+        self.template.add(param, value)
 
 def remove_diacritics(s):
     return unidecode(s) if type(s) == unicode else s
@@ -42,10 +156,6 @@ def get_oa_link(reference):
     for i in range(len(authors)):
         if 'first' not in authors[i]:
             authors[i] = {'plain':authors[i].get('last','')}
-
-    # Currently, we disable the bot for citations without DOIs
-    if not doi:
-        return
 
     args = {
         'title':title,
@@ -66,6 +176,10 @@ def get_oa_link(reference):
     # if it is free to read.
     paper_object = resp.get('paper', {})
     dissemin_pdf_url = paper_object.get('pdf_url')
+    print('dissemin_pdf_url')
+    print(dissemin_pdf_url)
+    return dissemin_pdf_url
+
     oa_url = None
     candidate_urls = sort_links([
         record.get('splash_url') for record in
@@ -90,75 +204,6 @@ def get_oa_link(reference):
     if resp.get('paper',{}).get('pdf_url'):
         return
 
-@urls_cache.cached
-def check_free_to_read(url):
-    """
-    Checks (with Zotero translators and CiteSeerX
-    paper filters) that a given URL is free to read
-    """
-    try:
-	    r = requests.post('http://doi-cache.dissem.in/zotero/query',
-			data={
-		    'url':url,
-		    'key':ZOTERO_CACHE_API_KEY,
-		    },
-		    timeout=10,
-		    headers={'User-Agent':OABOT_USER_AGENT})
-
-	    # Is a full text available there?
-	    items = None
-	    try:
-		items = r.json()
-	    except ValueError:
-		if r.status_code == 403:
-		    raise ValueError("Please provide a valid Zotero cache API key")
-	    if not items:
-		return False
-
-	    for item in items:
-		for attachment in item.get('attachments',[]):
-		    if attachment.get('mimeType') == 'application/pdf':
-			# We found a candidate PDF!
-			# Check that it looks like a legit scholarly paper
-			return paper_filter.classify_url(attachment.get('url'))
-    except requests.exceptions.Timeout:
-	pass
-    return False
-
-def check_metadata_with_crossref(doi, reference):
-    """
-    Fetch the official author lists for a given DOI
-    and match them with the ones input in the citation.
-    """
-    # doi-cache.dissem.in/DOI acts like doi.org/DOI for Citeproc+JSON
-    # metadata. Crossref's metadata service is currently unavailable so
-    # we use this cache.
-    citeproc = requests.get('http://doi-cache.dissem.in/'+doi, headers=
-        {'Accept':'application/citeproc+json',
-         'User-Agent':OABOT_USER_AGENT}).json()
-
-    official_authors = citeproc.get('author')
-    if not official_authors:
-        return False
-
-    try:
-        official_last_names = [
-            a.get('family')
-            for a in official_authors
-            ]
-
-        our_last_names = [
-            a.get('last')
-            for a in reference['Authors']
-            ]
-
-        def normalize(lst):
-            return set([remove_diacritics(s) for s in lst])
-
-        return normalize(official_last_names) == normalize(our_last_names)
-    except KeyError, ValueError:
-        return False
-
 
 def add_oa_links_in_references(text):
     """
@@ -169,132 +214,12 @@ def add_oa_links_in_references(text):
             and edit statistics
     """
     wikicode = mwparserfromhell.parse(text)
-    changed_templates = []
 
-    stats = {
-        # total number of templates processed (not counting excluded
-        # ones)
-        'nb_templates':0,
-        # actual changes on the templates (including access-related changes)
-        'changed':0,
-	# Links actually added to the templates
-        'links_added':0,
-        # no change because one link was already marked with the open
-        # lock
-        'already_open':0,
-        # no change because the |url= we tried to add was already present
-        'url_present':0,
-        # no change because the template uses |registration= or
-        # |subscription=
-        'registration_subscription':0,
-        }
-
-    for template in wikicode.filter_templates():
-        orig_template = deepcopy(template)
-        reference = parse_citation_template(template)
-        tpl_name = unicode(template.name).lower().strip()
-        if reference and tpl_name not in excluded_templates:
-            stats['nb_templates'] += 1
-	    sys.stdout.write('.')
-	    sys.stdout.flush()
-
-            # First check if there is already a link to a full text
-            # in the citation.
-            already_oa_param = None
-            already_oa_value = None
-            for argmap in template_arg_mappings:
-                if argmap.present_and_free(template):
-                    already_oa_param = argmap.name
-                    already_oa_value = argmap.get(template)
-
-            change = {}
-
-            # If so, we just skip it - no need for more free links
-            if already_oa_param:
-                change['new_'+already_oa_param] = (already_oa_value,'#')
-                stats['already_open'] += 1
-		changed_templates.append((orig_template, change))
-                continue
-
-            # If the template is marked with |registration= or
-            # |subscription= , let's assume that the editor tried to find
-            # a better version themselves so it's not worth trying.
-            if ((get_value(template, 'subscription')
-                or get_value(template, 'registration')) in
-                ['yes','y','true']):
-                stats['registration_subscription'] += 1
-                changed_templates.append((orig_template,
-                    {'blocked_by':
-                    ('|subscription= or |registration=','')
-                }))
-                continue
-
-            # Otherwise, try to get a free link
-            link = get_oa_link(reference)
-            if not link:
-                changed_templates.append((orig_template,None))
-                continue
-
-            # We found an OA link!
-
-            # Try to match it with an argument
-            argument_found = False
-            for argmap in template_arg_mappings:
-                # Did the link we have got match that argument place?
-                match = argmap.extract(link)
-                if not match:
-                    continue
-
-                argument_found = True
-
-                # If this parameter is already present in the template:
-                current_value = argmap.get(template)
-                if current_value:
-                    change['new_'+argmap.name] = (match,link)
-
-                    #if argmap.custom_access:
-                    #    stats['changed'] += 1
-                    #    template.add(argmap.custom_access, 'free')
-		    #else:
-
-                    stats['url_present'] += 1
-                    # don't change anything
-                    break
-
-                # If the parameter is not present yet, add it
-
-                # -- Special case for DOIs
-                # If we are trying to add a DOI, that means
-                # the matching was done without DOI, solely based
-                # on the rest of the metadata. This might not be
-                # accurate. So, we check that the list of authors
-                # and date match.
-                if (argmap.name == 'doi' and not
-                     check_metadata_with_crossref(match, reference)):
-                    break
-
-                stats['changed'] += 1
-		stats['links_added'] += 1
-		if argmap.is_id:
-                    val = '{{%s|%s}}' % (argmap.name,match)
-                    template.add('id', val)
-                    change['id'] = (val,link)
-                else:
-                    template.add(argmap.name, match)
-                    change[argmap.name] = (match,link)
-
-		    #if argmap.custom_access:
-		    #	template.add(argmap.custom_access, 'free')
-                break
-
-            changed_templates.append((orig_template, change))
-
-    print ''
-
-    # Flush the cache to the disk
-    urls_cache.save()
-
-    return unicode(wikicode), changed_templates, stats
+    for index, template in enumerate(wikicode.filter_templates()):
+        edit = TemplateEdit(template)
+        edit.index = index
+        edit.propose_change()
+        yield edit
 
 
 def get_text(page, max_hops=3):
@@ -424,8 +349,6 @@ def perform_edit(page):
 # HTML rendering #
 ##################
 
-# This section defines the web interface demonstrating
-# the potential edits of the bot.
 
 def make_diff(old, new):
     """
@@ -439,124 +362,4 @@ def make_diff(old, new):
     return html
 
 
-def render_change(old_wikicode, new_wikicode, changed_templates, stats,
-                page_name, edit_link):
-    """
-    Renders an HTML summary of the changes
-    made by the bot
-    """
-    page_url = 'https://en.wikipedia.org/wiki/'+page_name #'https:'+page.permalink()
 
-    html = '<h2>Results for page <a href="%s">OABOT_PAGE_NAME</a></h2>\n' % page_url
-    html += '<p>Processed: %s</p>\n' % datetime.utcnow().isoformat()
-    html += ('<p>%s</p>' % edit_link)
-
-    # Check for exclusion
-    if not bot_is_allowed(old_wikicode, 'OAbot'):
-	html += '<p><strong>Note:</strong> The bot is <a href="https://en.wikipedia.org/wiki/Template:Bots">not allowed</a> to edit this page.</p>'
-
-    # Print stats
-    html += '<table class="edit-stats">'
-    html += '<tr><td>Citations checked</td><td>%s</td></tr>\n' % stats['nb_templates']
-    html += '<tr><td>* Citations changed</td><td>%s</td>\n' % stats['changed']
-    html += '<tr><td>&nbsp;&nbsp;+ Citations with a new free link</td><td>%s</td></tr>\n' % stats['links_added']
-    html += '<tr><td>&nbsp;&nbsp;+ No new free link, but new access icon</td><td>%s</td></tr>\n' % (stats['changed']-stats['links_added'])
-    html += '<tr><td>* Citations left unchanged</td><td>%s</td>\n' % (stats['nb_templates']-stats['changed'])
-    html += '<tr><td>&nbsp;&nbsp;+ Green lock already present</td><td>%s</td></tr>\n' % stats['already_open']
-    html += '<tr><td>&nbsp;&nbsp;+ No room for a new |url=</td><td>%s</td></tr>\n' % stats['url_present']
-    html += '<tr><td>&nbsp;&nbsp;+ Citation uses |registration= or |subscription=</td><td>%s</td></tr>\n' % stats['registration_subscription']
-    html += ('<tr><td>&nbsp;&nbsp;+ No free version found</td><td>%s</td></tr>\n' %
-        (stats['nb_templates']-stats['changed']-stats['url_present']-stats['already_open']-stats['registration_subscription']))
-    html += '</table>'
-
-    # Render changes
-
-    html += '<h3>Template details</h3>\n' # (%d)</h3>\n' % len(changed_templates)
-    html += '<ol>\n'
-    for idx, (template, change) in enumerate(changed_templates):
-        html += '<li id="%d">' % (idx+1)
-        html += '<pre>'+unicode(template)+'</pre>\n'
-        if not change:
-            reference = parse_citation_template(template)
-            title = remove_diacritics(reference.get('Title',''))
-            gs_url = 'http://scholar.google.com/scholar?'+urlencode({'q':title})
-            html += ('No OA version found. '+
-             ('<a href="%s">Search in Google Scholar</a>' % gs_url) )
-            continue
-        html += '<ul>\n'
-        for key, (val,link) in change.items():
-            if key == 'blocked_by':
-                html += 'No change made as %s is present' % val
-            else:
-                if key.startswith('new_'):
-                    key = key[4:]
-                    html += '<li>Already present: <span class="template_param">%s=' % key
-                else:
-                    html += '<strong>Added:</strong>\n<li><span class="template_param">%s=' % key
-                html += '<a href="%s">%s</a>' % (link,val)
-                html += '</span></li>\n'
-
-        html += '</ul>\n</li>\n'
-    html += '</ol>\n'
-
-    # Render diff
-    html += '<h3>Wikicode diff</h3>\n'
-    html += make_diff(old_wikicode, new_wikicode)+'\n'
-
-    return html
-
-def render_html_template(html, page_name):
-    with codecs.open('templates/skeleton.html','r', 'utf-8') as f:
-        skeleton = f.read()
-    skeleton = skeleton.replace('OABOT_APP_MOUNT_POINT', OABOT_APP_MOUNT_POINT)
-    skeleton = skeleton.replace('OABOT_BODY_GOES_HERE', html)
-    skeleton = skeleton.replace('OABOT_PAGE_NAME', page_name)
-    return skeleton
-
-def generate_html_for_dry_run(page_name, refresh_url=None):
-    """
-    Simulates an edit and renders an HTML summary of it
-    :returns: the HTML code
-    """
-    try:
-        #site = pywikibot.Site()
-        #page = pywikibot.Page(site, page_name)
-        #text, page_name = get_text(page)
-        text = get_page_over_api(page_name)
-    except ValueError as e:
-        return render_html_template("<p><strong>Error:</strong>"+unicode(e)+"</p>",
-            page_name)
-
-    new_wikicode, changed_templates, stats = add_oa_links_in_references(text)
-    html = render_change(text, new_wikicode, changed_templates, stats, page_name,
-                'This is a simulation, no edit was performed. (<a href="%s&refresh=true">refresh</a>)' % refresh_url)
-    return render_html_template(html, page_name)
-
-def test_run(max_edits=50, starting_page=None):
-    import pywikibot
-    site = pywikibot.Site()
-    site.login()
-    cs1 = pywikibot.Page(site, 'Module:Citation/CS1')
-    count = 0
-    print "requesting pages"
-    starting_page_seen = starting_page is None
-    for p in cs1.embeddedin(namespaces=[0]):
-	print p.title()
-	if p.title() == starting_page:
-	   starting_page_seen = True
-	   continue
-        if count >= max_edits:
-            break
-	if not starting_page_seen:
-	    continue
-        r = perform_edit(p)
-        if r and r[1]['changed']:
-            count += 1
-
-if __name__ == '__main__':
-    import pywikibot
-    page_name = sys.argv[1]
-    site = pywikibot.Site()
-    page = pywikibot.Page(site, page_name)
-    changed_templates, stats = perform_edit(page)
-    print "Edit successfully performed"
