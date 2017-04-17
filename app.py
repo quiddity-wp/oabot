@@ -30,6 +30,7 @@ import requests
 import json
 import md5
 import codecs
+import re
 import datetime
 from requests_oauthlib import OAuth1
 import mwparserfromhell
@@ -117,11 +118,20 @@ def cached(fun, force, key, *args, **kwargs):
 	    f.write(value)
 	return value
     
+redirect_re = re.compile(r'#REDIRECT *\[\[(.*)\]\]')
+
 @app.route('/process')
 def process():
     page_name = flask.request.args.get('name')
     force = flask.request.args.get('refresh') == 'true'
+    # Get the page
     text = main.get_page_over_api(page_name)
+
+    # See if it's a redirect
+    redir = redirect_re.match(text)
+    if redir:
+        return flask.redirect(flask.url_for('process', name=redir.group(1)))
+    
     all_templates = main.add_oa_links_in_references(text)
     filtered = filter(lambda e: e.proposed_change, all_templates)
     context = {
