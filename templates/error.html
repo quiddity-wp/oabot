@@ -6,7 +6,9 @@
     </head>
     <body>
         <h2>OAbot</h2>
-        <p>Error: {{ message }}</p>
+        <h3>Oops! Something went wrong.</h3>
+        <p>Error:<br />
+        {% autoescape false %}{{ message }}{% endautoescape %}</p>
     </body>
 </html>
 

@@ -12,7 +12,6 @@ from unidecode import unidecode
 import re
 from datetime import datetime
 from copy import deepcopy
-from difflib import HtmlDiff
 import os
 from arguments import template_arg_mappings, get_value
 from ranking import sort_links
@@ -221,17 +220,6 @@ def add_oa_links_in_references(text):
         edit.propose_change()
         yield edit
 
-
-def get_text(page, max_hops=3):
-    try:
-        text = page.get(throttle=False)
-        return text, page.title()
-    except pywikibot.IsRedirectPage as e:
-        if max_hops:
-            return get_text(page.getRedirectTarget(), max_hops=max_hops-1)
-        else:
-            raise e
-
 def get_page_over_api(page_name):
     r = requests.get('https://en.wikipedia.org/w/api.php', params={
         'action':'query',
@@ -273,93 +261,5 @@ def bot_is_allowed(text, user):
                 if bot in (user, 'all'):
                     return False
     return True
-
-def perform_edit(page):
-    """
-    Performs the edit on the given page
-    """
-    text = page.get()
-    oldid = page.latest_revision_id
-
-    # Check if we can do the edit
-    allowed = bot_is_allowed(text, 'OAbot')
-    if not allowed:
-        print "Not allowed"
-	return
-
-    new_wikicode, changed_templates, stats = add_oa_links_in_references(text)
-
-    if new_wikicode == text:
-        print "No changes"
-        return changed_templates, stats
-
-    page.text = new_wikicode
-
-    # Generate new edit message
-    edit_message = 'Added '
-    if stats['links_added']:
-        edit_message += ('%d free to read link' %
-                            stats['links_added'])
-        if stats['links_added'] > 1:
-            edit_message += 's'
-
-    icons_added = stats['changed'] - stats['links_added']
-    if icons_added > 0:
-        if stats['links_added']:
-            edit_message += ' and '
-        edit_message += ('%d access icon' % icons_added)
-        if icons_added > 1:
-            edit_message += 's'
-
-    edit_message += ' in citations. [[User talk:OAbot|Feedback]]'
-
-    print edit_message
-
-    # Perform the edit
-    page.save(edit_message)
-
-    # Get our new revision id
-    page.get(force=True)
-    revid = page.latest_revision_id
-    diffurl = ("https://en.wikipedia.org/w/index.php?diff=%d&oldid=%d"
-                %
-                (revid, oldid))
-
-    # Generate HTML summary of the changes
-    html = render_change(
-                text,
-                new_wikicode,
-                changed_templates,
-                stats,
-                page.title(),
-                '<a href="%s">Edit performed</a>.' %
-                diffurl)
-    html = render_html_template(html, page.title())
-
-    html_fname = 'edits/%s_%d_%s.html' % (datetime.utcnow().isoformat(),
-        oldid,
-        urllib.quote(remove_diacritics(page.title(underscore=True))))
-
-    with codecs.open(html_fname, 'w', 'utf-8') as f:
-        f.write(html)
-
-    return changed_templates, stats
-
-##################
-# HTML rendering #
-##################
-
-
-def make_diff(old, new):
-    """
-    Render in HTML the diff between two texts
-    """
-    df = HtmlDiff()
-    old_lines = old.splitlines(1)
-    new_lines = new.splitlines(1)
-    html = df.make_table(old_lines, new_lines, context=True)
-    html = html.replace(' nowrap="nowrap"','')
-    return html
-
 
 

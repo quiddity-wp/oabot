@@ -34,6 +34,7 @@ import datetime
 from requests_oauthlib import OAuth1
 import mwparserfromhell
 import main
+from difflib import HtmlDiff
 
 app = flask.Flask(__name__)
 
@@ -160,6 +161,23 @@ def process():
     return cached(flask.render_template, force, page_name, "change.html", **context)
     #return tpl
 
+def make_new_wikicode(text, form_data):
+    wikicode = mwparserfromhell.parse(text)
+    change_made = False
+    for template in wikicode.filter_templates():
+        edit = main.TemplateEdit(template)
+        if edit.classification == 'ignored':
+            continue
+        proposed_addition = form_data.get(edit.orig_hash)
+        if proposed_addition:
+            try:
+                edit.update_template(proposed_addition)
+                change_made = True
+            except ValueError:
+                pass # TODO report to the user
+    return unicode(wikicode), change_made
+
+
 @app.route('/perform-edit', methods=['POST'])
 def perform_edit():
     data = flask.request.form
@@ -180,23 +198,48 @@ def perform_edit():
     text = main.get_page_over_api(page_name)
     
     # Perform each edit
-    wikicode = mwparserfromhell.parse(text)
-    for template in wikicode.filter_templates():
-        edit = main.TemplateEdit(template)
-        if edit.classification == 'ignored':
-            continue
-        proposed_addition = data.get(edit.orig_hash)
-        if proposed_addition:
-            try:
-                edit.update_template(proposed_addition)
-            except ValueError:
-                pass # TODO report to the user
+    new_text, change_made = make_new_wikicode(text, data)
 
     # Save the page
-    new_text = unicode(wikicode)
-    edit_wiki_page(page_name, new_text, summary)
+    if change_made:
+        new_text = unicode(wikicode)
+        edit_wiki_page(page_name, new_text, summary)
+        return flask.redirect(flask.url_for('index', success='true'))
+    else:
+        return flask.redirect(flask.url_for('index', success='nothing'))
 
-    return flask.redirect(flask.url_for('index', success='true'))
+
+def make_diff(old, new):
+    """
+    Render in HTML the diff between two texts
+    """
+    df = HtmlDiff()
+    old_lines = old.splitlines(1)
+    new_lines = new.splitlines(1)
+    html = df.make_table(old_lines, new_lines, context=True)
+    html = html.replace(' nowrap="nowrap"','')
+    return html
+
+@app.route('/preview-edit', methods=['POST'])
+def preview_edit():
+    data = flask.request.form
+
+    page_name = data.get('name')
+    if not page_name:
+        raise InvalidUsage('Page title is required')
+    summary = data.get('summary')
+    if not summary:
+        raise InvalidUsage('No summary provided')
+        
+    # Get the page
+    text = main.get_page_over_api(page_name)
+    
+    # Perform each edit
+    new_text, change_made = make_new_wikicode(text, data)
+
+    diff = make_diff(text, new_text)
+    return '<div class="diffcontainer">'+diff+'</div>'
+    
 
 @app.route('/login')
 def login():

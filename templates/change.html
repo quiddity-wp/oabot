@@ -3,6 +3,7 @@
     <head>
         <title>OAbot: {{ page_name }}</title>
         <link rel="stylesheet" href="{{ url_for('send_css', path='style.css') }}" />
+        <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
     </head>
     <body>
         <a href="{{ url_for('index') }}">&#8592; Back</a>
@@ -18,7 +19,7 @@
         <p>Processed: {{ utcnow }} (<a href="{{ url_for('process', name=page_name, refresh='true') }}">refresh</a>)</p>
 
         <h3>Template details</h3>
-        <form action="{{ url_for('perform_edit') }}" method="POST"> 
+        <form id="edit-form" action="{{ url_for('perform_edit') }}" method="POST"> 
         <input type="hidden" name="name" value="{{ page_name }}" />
         <ol>
 
@@ -37,6 +38,19 @@
         <p><span class="edit">
         <input type="submit" value="Perform edit" /> with summary <input type="text" size="50" name="summary" value="Added free to read links in citations" /></span></p>
         </form>
+        <input type="button" onclick="preview()" value="Preview diff" />
+        <script type="text/javascript">
+        function preview() {
+            $.post(
+                "{{ url_for('preview_edit') }}",
+                $("#edit-form").serialize(),
+                function(diff) {
+                    $("#preview-diff").html(diff);
+                });
+        }
+        </script>
+        <div id="preview-diff">
+        </div>
 
         <p><a href="{{ url_for('index') }}">&#8592; Back</a></p>
         <p><a href="https://github.com/wetneb/oabot">Source code</a></p>
