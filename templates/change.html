@@ -38,7 +38,10 @@
         <p><span class="edit">
         <input type="submit" value="Perform edit" /> with summary <input type="text" size="50" name="summary" value="Added free to read links in citations" /></span></p>
         </form>
-        <input type="button" onclick="preview()" value="Preview diff" />
+        <form action="{{ url_for('get_random_page') }}">
+            <input type="button" onclick="preview()" value="Preview diff" />
+            <input type="submit" value="Skip" />
+        </form>
         <script type="text/javascript">
         function preview() {
             $.post(

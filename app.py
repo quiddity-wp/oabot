@@ -32,6 +32,7 @@ import md5
 import codecs
 import re
 import datetime
+from random import randint
 from requests_oauthlib import OAuth1
 import mwparserfromhell
 import main
@@ -66,7 +67,6 @@ def handle_invalid_usage(error):
     response = flask.render_template("error.html", message=
         str(type(error))+' '+str(error)+'\n<br/>\n'+tb)
     return response
-
 
 @app.route('/')
 def index():
@@ -103,27 +103,39 @@ def edit_wiki_page(page_name, content, summary=None):
     }, auth=auth)
     r.raise_for_status()
 	
-def cached(fun, force, key, *args, **kwargs):
-    r = md5.md5()
-    r.update(key.encode('utf-8'))
-    h = r.hexdigest()
-    cache_fname = 'cache/%s.html' % h
-    if not force and os.path.isfile(cache_fname):
-	with codecs.open(cache_fname, 'r', 'utf-8') as f:
-	    val = f.read()
-	return val
-    else:
-	value = fun(*args, **kwargs)
-	with codecs.open(cache_fname, 'w', 'utf-8') as f:
-	    f.write(value)
-	return value
-    
-redirect_re = re.compile(r'#REDIRECT *\[\[(.*)\]\]')
 
 @app.route('/process')
 def process():
     page_name = flask.request.args.get('name')
     force = flask.request.args.get('refresh') == 'true'
+    return render_proposed_edits(page_name, force)
+
+def to_cache_name(page_name):
+    safe_page_name = page_name.replace('/','#').replace(' ','_')
+    cache_fname = '%s.html' % safe_page_name
+    return cache_fname
+
+def from_cache_name(cache_fname):
+    return cache_fname[:-5].replace('_',' ').replace('#','/')
+
+@app.route('/get-random-page')
+def get_random_page():
+    # Check first that we are logged in
+    access_token =flask.session.get('access_token', None)
+    if not access_token:
+        return flask.redirect(flask.url_for('login', next_url=flask.url_for('get_random_page')))
+
+    # Then, redirect to a random cached edit
+    for (_, _, fnames) in os.walk('cache/'):
+        if not fnames:
+            return flask.redirect('index')
+        idx = randint(0,len(fnames)-1)
+        return flask.redirect(
+            flask.url_for('process', name=from_cache_name(fnames[idx])))
+
+redirect_re = re.compile(r'#REDIRECT *\[\[(.*)\]\]')
+
+def render_proposed_edits(page_name, force):
     # Get the page
     text = main.get_page_over_api(page_name)
 
@@ -131,16 +143,30 @@ def process():
     redir = redirect_re.match(text)
     if redir:
         return flask.redirect(flask.url_for('process', name=redir.group(1)))
+
+    # See if we already have it cached
+    cache_fname = "cache/"+to_cache_name(page_name)
+    if not force and os.path.isfile(cache_fname):
+        with codecs.open(cache_fname, 'r', 'utf-8') as f:
+            return f.read()
     
+    # Otherwise, process it
     all_templates = main.add_oa_links_in_references(text)
-    filtered = filter(lambda e: e.proposed_change, all_templates)
+    filtered = list(filter(lambda e: e.proposed_change, all_templates))
     context = {
 	'proposed_edits': filtered,
 	'page_name' : page_name,
         'utcnow': datetime.datetime.utcnow(),
     } 
-    return cached(flask.render_template, force, page_name, "change.html", **context)
-    #return tpl
+    response = flask.render_template("change.html", **context)
+
+    if filtered:
+        # Cache the result
+        with codecs.open(cache_fname, 'w', 'utf-8') as f:
+            f.write(response)
+    
+    return response
+    
 
 def make_new_wikicode(text, form_data):
     wikicode = mwparserfromhell.parse(text)
@@ -184,7 +210,13 @@ def perform_edit():
     # Save the page
     if change_made:
         edit_wiki_page(page_name, new_text, summary)
-        return flask.redirect(flask.url_for('index', success='true'))
+
+        # Remove the cache
+        cache_fname = "cache/"+to_cache_name(page_name)
+        if os.path.isfile(cache_fname):
+            os.remove(cache_fname)
+
+        return flask.redirect(flask.url_for('get_random_page'))
     else:
         return flask.redirect(flask.url_for('index', success='nothing'))
 
@@ -270,7 +302,8 @@ def oauth_callback():
             access_token._fields, access_token))
         flask.session['username'] = identity['username']
 
-    return flask.redirect(flask.url_for('index'))
+    next_url = flask.request.args.get('next_url') or flask.url_for('get_random_page')
+    return flask.redirect(next_url)
 
 
 @app.route('/logout')

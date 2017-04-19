@@ -175,8 +175,6 @@ def get_oa_link(reference):
     # if it is free to read.
     paper_object = resp.get('paper', {})
     dissemin_pdf_url = paper_object.get('pdf_url')
-    print('dissemin_pdf_url')
-    print(dissemin_pdf_url)
     return dissemin_pdf_url
 
     oa_url = None

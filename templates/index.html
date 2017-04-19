@@ -26,23 +26,30 @@
         <p id="description">
         This scripts looks for open access versions of references in Wikipedia articles. If no URL is provided in the citation template, it adds one that points to an open access repository where the reference is available (if we can find one).
 	<br /><br />
-	{% if not username %}
-	If you <a href="{{ url_for('login') }}">login with your Wikipedia account</a>,
-	{% else %}
-	You are logged in as <a href="https://en.wikipedia.org/wiki/User:{{ username }}">{{ username }}</a>
-	(<a href="{{ url_for('logout') }}">logout</a>), so
-	{% endif %}
-	you will be able to review the changes proposed by this tool on any page of the English Wikipedia,
-	and perform them with your account.
-	</p>	
-	
+        
+        For each article, you will be able to review
+        the links proposed by the tool, and perform the edit
+        with your Wikipedia account.</p>
+
+        <p>
+        <form action="{{ url_for('get_random_page') }}">
+            <input type="submit" value="Start editing a random page!" />
+        </form>
+        </p>
+
 	<p>
 	<a href="https://en.wikipedia.org/w/index.php?title=Special:RecentChanges&tagfilter=OAuth+CID:+817">
 	Edits recently performed with this tool</a>.
 	</p>
+    
+        <p>{% if not username %}<a href="{{ url_for('login') }}">Login</a>{% else %}
+	    Logged in as <a href="https://en.wikipedia.org/wiki/User:{{ username }}">{{ username }}</a>
+	(<a href="{{ url_for('logout') }}">logout</a>).{% endif %}</p>
 
 	<p><a href="https://github.com/dissemin/oabot">GitHub project</a> - 
-           run by <a href="https://en.wikipedia.org/wiki/User_talk:Pintoch">Pintoch</a>
+           run by <a href="https://en.wikipedia.org/wiki/User_talk:Pintoch">Pintoch</a> - 
+           brought to you by <a href="https://association.dissem.in/index.html.en">CAPSH</a> -
+           hosted on <a href="https://tools.wmflabs.org/">WMF Tool Labs</a>
 	 </p>
     </body>
 </html>
