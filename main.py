@@ -234,6 +234,8 @@ def check_free_to_read(url):
                         print('attachment url')
                         print(attachment.get('url'))
                         return paper_filter.classify_url(attachment.get('url'))
+                    elif attachment.get('title') == 'PubMed Central Link':
+                        return True
     except requests.exceptions.Timeout:
         pass
     return False

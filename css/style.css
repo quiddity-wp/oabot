@@ -24,6 +24,10 @@ colgroup {
 tbody {
     border-top: 20px solid white;
 }
+.diffcontainer table {
+    width: 100%;
+    table-layout: fixed;
+}
 .diff_header, .diff_next {
     text-align: right;
     padding-right: 3px;
