@@ -4,43 +4,52 @@
         <title>OAbot: {{ page_name }}</title>
         <link rel="stylesheet" href="{{ url_for('send_css', path='style.css') }}" />
         <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
     </head>
     <body>
-        <a href="{{ url_for('index') }}">&#8592; Back</a>
-        <p>
+        <p><a href="{{ url_for('index') }}">&#8592; Back</a></p>
+        <br/>
+        <div class="row">
             <form action="{{ url_for('process') }}" method="get">
-                <label for="name">Page name: </label>
-                <input type="text" name="name" id="nameInput" value="{{ page_name }}" />
-                <input type="submit" value="Propose changes" />
+                <div class="col-lg-3">
+                <div class="input-group">
+                    <input type="text" name="name" id="nameInput" value="{{ page_name }}" class="form-control" />
+                    <span class="input-group-btn">
+                        <input type="submit" value="Go" class="btn btn-default" />
+                    </span>
+                </div>
+                </div>
             </form>
-        </p>
+        </div>
 
-        <h2>Results for page <a href="https://en.wikipedia.org/wiki/{{ page_name }}">{{ page_name }}</a></h2>
+        <h2>OAbot: <a href="https://en.wikipedia.org/wiki/{{ page_name }}">{{ page_name }}</a></h2>
         <p>Processed: {{ utcnow }} (<a href="{{ url_for('process', name=page_name, refresh='true') }}">refresh</a>)</p>
 
         {% if proposed_edits %}
-        <h3>Template details</h3>
+        <h3>Citations</h3>
         <form id="edit-form" action="{{ url_for('perform_edit') }}" method="POST"> 
         <input type="hidden" name="name" value="{{ page_name }}" />
         <ol>
 
         {%  for template_edit in proposed_edits %}
             <li id="{{ template_edit.index +1 }}">
-            <pre>{{ template_edit.orig_string }}</pre>
-            {% if template_edit.proposed_link %}
-                <p>Proposed link: <a href="{{ template_edit.proposed_link }}">{{ template_edit.proposed_link }}</a></p>
-            {% endif %}
-            <p>Change: <input type="text" size="100" name="{{ template_edit.orig_hash }}" value="{{ template_edit.proposed_change }}" /></p>
+            <div class="wiki">{{ template_edit.orig_string|wikirender }}</div>
+            <p>
+                <input type="checkbox" name="{{ template_edit.orig_hash }}-addlink" value="checked" checked />
+                <span class="addlink">Add link: <a href="{{ template_edit.proposed_link }}">{{ template_edit.proposed_link }}</a></span></p>
+            <input type="hidden" size="100" name="{{ template_edit.orig_hash }}" value="{{ template_edit.proposed_change }}" />
             </li>
         {% endfor %}
         </ol>
 
-        <p><span class="edit">
-        <input type="submit" value="Perform edit" /> with summary <input type="text" size="50" name="summary" value="Added free to read links in citations" /></span></p>
-        </form>
-        <form action="{{ url_for('get_random_page') }}">
-            <input type="button" onclick="preview()" value="Preview diff" />
-            <input type="submit" value="Skip" />
+        <h3>Actions</h3>
+        <p>
+        <span class="btn-group">
+            <input type="button" onclick="window.location.href='{{ url_for('get_random_page') }}'" class="btn btn-danger" value="Skip" />
+            <input type="button" onclick="preview()" value="Preview diff" class="btn btn-default" />
+            <input class="btn btn-success" type="submit" value="Perform edit" />
+        </span>
+         with summary <input class="form-control" style="max-width:400px; display: inline" type="text" size="50" name="summary" value="Added free to read links in citations" /></p>
         </form>
         <script type="text/javascript">
         function preview() {
@@ -60,7 +69,6 @@
         {% endif %}
 
         <p><a href="{{ url_for('index') }}">&#8592; Back</a></p>
-        <p><a href="https://github.com/wetneb/oabot">Source code</a></p>
     </body>
 </html>
 

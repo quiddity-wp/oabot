@@ -87,12 +87,12 @@ template_arg_mappings = [
     ArgumentMapping(
         'doi',
         r'https?://(dx\.)?doi\.org/([^ ]*)',
-        group_id=2),
-#        custom_access=True),
+        group_id=2,
+        custom_access=True),
     ArgumentMapping(
         'hdl',
-        r'https?://hdl\.handle\.net/([^ ]*)'),
-#        custom_access=True),
+        r'https?://hdl\.handle\.net/([^ ]*)',
+        custom_access=True),
     ArgumentMapping(
         'arxiv',
         r'https?://arxiv\.org/abs/(.*)',

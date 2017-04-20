@@ -32,17 +32,26 @@ import md5
 import codecs
 import re
 import datetime
+import jinja2
 from random import randint
 from requests_oauthlib import OAuth1
 import mwparserfromhell
 import main
 from difflib import HtmlDiff
+import wikirender
+
+import urllib3
+import urllib3.contrib.pyopenssl
+urllib3.disable_warnings()
+urllib3.contrib.pyopenssl.inject_into_urllib3()
 
 app = flask.Flask(__name__)
 
 __dir__ = os.path.dirname(__file__)
 app.config.update(
     yaml.safe_load(open(os.path.join(__dir__, 'config.yaml'))))
+
+app.jinja_env.filters['wikirender'] = wikirender.wikirender
 
 class InvalidUsage(Exception):
     status_code = 400
@@ -108,15 +117,24 @@ def edit_wiki_page(page_name, content, summary=None):
 def process():
     page_name = flask.request.args.get('name')
     force = flask.request.args.get('refresh') == 'true'
-    return render_proposed_edits(page_name, force)
+    context =  get_proposed_edits(page_name, force)
+    return flask.render_template('change.html', **context)
 
 def to_cache_name(page_name):
     safe_page_name = page_name.replace('/','#').replace(' ','_')
-    cache_fname = '%s.html' % safe_page_name
+    cache_fname = '%s.json' % safe_page_name
     return cache_fname
 
 def from_cache_name(cache_fname):
     return cache_fname[:-5].replace('_',' ').replace('#','/')
+
+def list_cache_contents():
+    for (_, _, fnames) in os.walk('cache/'):
+        return map(from_cache_name, fnames)
+
+def refresh_whole_cache():
+    for page_name in list_cache_contents():
+        get_proposed_edits(page_name, True)
 
 @app.route('/get-random-page')
 def get_random_page():
@@ -126,47 +144,47 @@ def get_random_page():
         return flask.redirect(flask.url_for('login', next_url=flask.url_for('get_random_page')))
 
     # Then, redirect to a random cached edit
-    for (_, _, fnames) in os.walk('cache/'):
-        if not fnames:
-            return flask.redirect('index')
-        idx = randint(0,len(fnames)-1)
-        return flask.redirect(
-            flask.url_for('process', name=from_cache_name(fnames[idx])))
+    cached_pages = list_cache_contents()
+    if not cached_pages:
+        return flask.redirect(flask.url_for('index'))
+    idx = randint(0,len(cached_pages)-1)
+    return flask.redirect(
+        flask.url_for('process', name=cached_pages[idx]))
 
 redirect_re = re.compile(r'#REDIRECT *\[\[(.*)\]\]')
 
-def render_proposed_edits(page_name, force):
+def get_proposed_edits(page_name, force, follow_redirects=True):
     # Get the page
     text = main.get_page_over_api(page_name)
 
     # See if it's a redirect
     redir = redirect_re.match(text)
     if redir:
-        return flask.redirect(flask.url_for('process', name=redir.group(1)))
+        return get_proposed_edits(redir.group(1), force, False)
 
     # See if we already have it cached
     cache_fname = "cache/"+to_cache_name(page_name)
     if not force and os.path.isfile(cache_fname):
-        with codecs.open(cache_fname, 'r', 'utf-8') as f:
-            return f.read()
+        with open(cache_fname, 'r') as f:
+            return json.load(f)
     
     # Otherwise, process it
     all_templates = main.add_oa_links_in_references(text)
     filtered = list(filter(lambda e: e.proposed_change, all_templates))
     context = {
-	'proposed_edits': filtered,
+	'proposed_edits': [change.json() for change in filtered],
 	'page_name' : page_name,
-        'utcnow': datetime.datetime.utcnow(),
-    } 
-    response = flask.render_template("change.html", **context)
+        'utcnow': unicode(datetime.datetime.utcnow()),
+    }
 
     if filtered:
         # Cache the result
-        with codecs.open(cache_fname, 'w', 'utf-8') as f:
-            f.write(response)
+        with open(cache_fname, 'w') as f:
+            json.dump(context, f)
+    elif os.path.isfile(cache_fname):
+        os.remove(cache_fname)
     
-    return response
-    
+    return context
 
 def make_new_wikicode(text, form_data):
     wikicode = mwparserfromhell.parse(text)
@@ -176,7 +194,10 @@ def make_new_wikicode(text, form_data):
         if edit.classification == 'ignored':
             continue
         proposed_addition = form_data.get(edit.orig_hash)
-        if proposed_addition:
+        user_checked = form_data.get(edit.orig_hash+'-addlink')
+        print('user_checked')
+        print(user_checked)
+        if proposed_addition and user_checked == 'checked':
             try:
                 edit.update_template(proposed_addition)
                 change_made = True

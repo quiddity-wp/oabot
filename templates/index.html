@@ -3,8 +3,14 @@
     <head>
         <title>OAbot</title>
         <link rel="stylesheet" href="{{ url_for('send_css', path='style.css') }}" />
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
     </head>
     <body>
+        <p class="loginsection">{% if not username %}<a href="{{ url_for('login') }}">Login</a>{% else %}
+	    Logged in as <a href="https://en.wikipedia.org/wiki/User:{{ username }}">{{ username }}</a>
+	(<a href="{{ url_for('logout') }}">logout</a>).{% endif %}</p>
+
+
         <h2>OAbot</h2>
         {% if success == 'true' %}
         <div class="success">
@@ -15,16 +21,10 @@
             No edit was made
         </div>
         {% endif %}
-        <p>
-            <form action="{{ url_for('process') }}" method="get">
-                <label for="name">Page name: </label>
-                <input type="text" name="name" id="nameInput" />
-                <input type="submit" value="See the proposed changes" />
-            </form>
-        </p>
+        <br />
 
         <p id="description">
-        This scripts looks for open access versions of references in Wikipedia articles. If no URL is provided in the citation template, it adds one that points to an open access repository where the reference is available (if we can find one).
+        This tool looks for open access versions of references in Wikipedia articles. If no URL is provided in the citation template, it adds one that points to an open access repository where the reference is available (if we can find one).
 	<br /><br />
         
         For each article, you will be able to review
@@ -33,19 +33,36 @@
 
         <p>
         <form action="{{ url_for('get_random_page') }}">
-            <input type="submit" value="Start editing a random page!" />
+            <input type="submit" class="btn btn-success" value="Start editing a random page!" />
         </form>
         </p>
 
+        <p>You can also run the tool on a specific page of the English Wikipedia.</p>
+        <div class="row">
+            <form action="{{ url_for('process') }}" method="get" class="form-horizontal">
+                <div class="form-group">
+                    <div>
+                        <label for="name" class="control-label col-lg-1">Page title</label>
+                        <div class="controls col-lg-3">
+                        <div class="input-group">
+                            <input type="text" name="name" id="nameInput" value="{{ page_name }}" class="form-control" />
+                            <span class="input-group-btn">
+                                <input type="submit" value="See the proposed changes" class="btn btn-default" />
+                            </span>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <br />
 	<p>
 	<a href="https://en.wikipedia.org/w/index.php?title=Special:RecentChanges&tagfilter=OAuth+CID:+817">
 	Edits recently performed with this tool</a>.
 	</p>
+        <br/><br/>
     
-        <p>{% if not username %}<a href="{{ url_for('login') }}">Login</a>{% else %}
-	    Logged in as <a href="https://en.wikipedia.org/wiki/User:{{ username }}">{{ username }}</a>
-	(<a href="{{ url_for('logout') }}">logout</a>).{% endif %}</p>
-
 	<p><a href="https://github.com/dissemin/oabot">GitHub project</a> - 
            run by <a href="https://en.wikipedia.org/wiki/User_talk:Pintoch">Pintoch</a> - 
            brought to you by <a href="https://association.dissem.in/index.html.en">CAPSH</a> -

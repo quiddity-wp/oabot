@@ -45,6 +45,18 @@ class TemplateEdit(object):
         self.conflicting_value = ''
 	self.proposed_change = ''
         self.proposed_link = None
+        self.index = None
+    
+    def json(self):
+        return {
+            'orig_string': self.orig_string,
+            'orig_hash': self.orig_hash,
+            'classification': self.classification,
+            'conflicting_value': self.conflicting_value,
+            'proposed_change': self.proposed_change,
+            'proposed_link': self.proposed_link,
+            'index': self.index,
+        }
 
     def propose_change(self):
 	"""
@@ -76,6 +88,7 @@ class TemplateEdit(object):
             self.conflicting_value = already_oa_value
             return
 
+        # --- Disabled for now ----
         # If the template is marked with |registration= or
         # |subscription= , let's assume that the editor tried to find
         # a better version themselves so it's not worth trying.
@@ -83,7 +96,7 @@ class TemplateEdit(object):
             or get_value(self.template, 'registration')) in
             ['yes','y','true']):
             self.classification = 'registration_subscription'
-            return
+            # return
 
         # Otherwise, try to get a free link
         link = get_oa_link(reference)
@@ -175,7 +188,6 @@ def get_oa_link(reference):
     # if it is free to read.
     paper_object = resp.get('paper', {})
     dissemin_pdf_url = paper_object.get('pdf_url')
-    return dissemin_pdf_url
 
     oa_url = None
     candidate_urls = sort_links([
@@ -184,22 +196,47 @@ def get_oa_link(reference):
     ])
     for url in sort_links(candidate_urls):
         is_free = check_free_to_read(url)
-        if not is_free and url == dissemin_pdf_url:
-            # Dissemin thinks that there is a PDF somewhere,
-            # but Zotero fails to confirm it: skip, this
-            # looks dangerous.
-            return
         if is_free:
             # If we found a free URL, we are happy!
 	    return url
 
-    # At this point Zotero failed to fetch a full text for all our urls.
-    # If Dissemin thinks there is a full text somewhere anyway,
-    # skip this citation, because we might do something wrong.
-    # For instance, we do not want to add a preprint while the DOI
-    # is free to read (but we failed to detect that with Zotero).
-    if resp.get('paper',{}).get('pdf_url'):
-        return
+@urls_cache.cached
+def check_free_to_read(url):
+    """
+    Checks (with Zotero translators and CiteSeerX
+    paper filters) that a given URL is free to read
+    """
+    try:
+            r = requests.post('http://doi-cache.dissem.in/zotero/query',
+                        data={
+                    'url':url,
+                    'key':ZOTERO_CACHE_API_KEY,
+                    },
+                    timeout=10,
+                    headers={'User-Agent':OABOT_USER_AGENT})
+            print(url)
+
+            # Is a full text available there?
+            items = None
+            try:
+                items = r.json()
+            except ValueError:
+                if r.status_code == 403:
+                    raise ValueError("Please provide a valid Zotero cache API key")
+            if not items:
+                return False
+
+            for item in items:
+                for attachment in item.get('attachments',[]):
+                    if attachment.get('mimeType') == 'application/pdf':
+                        # We found a candidate PDF!
+                        # Check that it looks like a legit scholarly paper
+                        print('attachment url')
+                        print(attachment.get('url'))
+                        return paper_filter.classify_url(attachment.get('url'))
+    except requests.exceptions.Timeout:
+        pass
+    return False
 
 
 def add_oa_links_in_references(text):
