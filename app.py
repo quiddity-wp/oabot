@@ -109,6 +109,7 @@ def edit_wiki_page(page_name, content, summary=None):
         'summary': summary,
         'format': 'json',
         'token': token,
+        'watchlist': 'nochange',
     }, auth=auth)
     r.raise_for_status()
 	
