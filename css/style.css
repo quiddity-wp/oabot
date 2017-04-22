@@ -97,7 +97,10 @@ body {
     text-align: right;
     margin: 30px;
 }
-
+.startbutton {
+    max-width: 500px;
+    text-align: center;
+}
 
 
 /* Wikipedia citations */

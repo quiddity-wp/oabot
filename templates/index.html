@@ -29,13 +29,14 @@
         
         For each article, you will be able to review
         the links proposed by the tool, and perform the edit
-        with your Wikipedia account.</p>
+        with your Wikipedia account.
+        </p>
 
-        <p>
+        <div class="startbutton">
         <form action="{{ url_for('get_random_page') }}">
             <input type="submit" class="btn btn-success" value="Start editing a random page!" />
         </form>
-        </p>
+        </div>
 
         <p>You can also run the tool on a specific page of the English Wikipedia.</p>
         <div class="row">
