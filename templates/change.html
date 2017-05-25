@@ -41,13 +41,22 @@
             </li>
         {% endfor %}
         </ol>
-
+        <p>
+         <h3>How to decide?</h3> <br />
+         <ol>
+          Is the original link closed access?
+          Is the new link free to read? 
+          Do the two sources match?
+          Is the new link a copyright Infringement?
+         <ol/><br />
+        <p/>
+            
         <h3>Actions</h3>
         <p>
         <span class="btn-group">
             <input type="button" onclick="window.location.href='{{ url_for('get_random_page') }}'" class="btn btn-danger" value="Skip" />
-            <input type="button" onclick="preview()" value="Preview diff" class="btn btn-default" />
-            <input class="btn btn-success" type="submit" value="Perform edit" />
+            <input type="button" onclick="preview()" value="Preview" class="btn btn-default" />
+            <input class="btn btn-success" type="submit" value="Add link" />
         </span>
          with summary <input class="form-control" style="max-width:500px; display: inline" type="text" size="80" name="summary" value="Added free to read links in citations with [[WP:OABOT|OAbot]] #oabot" /></p>
         </form>
