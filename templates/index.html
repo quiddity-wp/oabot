@@ -34,7 +34,7 @@
 
         <div class="startbutton">
         <form action="{{ url_for('get_random_page') }}">
-            <input type="submit" class="btn btn-success" value="Start editing a random page!" />
+            <input type="submit" class="btn btn-success" value="{% if username %}Start editing a random page!{% else %}Log in{% endif %}" />
         </form>
         </div>
 
