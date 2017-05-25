@@ -18,9 +18,10 @@ def wikirender(eval_ctx, wikicode):
 
     result = result.replace('href="/wiki/',
             'href="https://en.wikipedia.org/wiki/')
-    
+    result = result.replace('<a ','<a target="_blank" ')
+
     if eval_ctx.autoescape:
         result = Markup(result) or wikicode
     return result or wikicode
-    
+
 
