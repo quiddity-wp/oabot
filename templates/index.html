@@ -24,12 +24,8 @@
         <br />
 
         <p id="description">
-        This tool looks for open access versions of references in Wikipedia articles. If no URL is provided in the citation template, it adds one that points to an open access repository where the reference is available (if we can find one).
+        We think we've found an open access version of an article cited on Wikipedia! Can you review our guess and edit Wikipedia to include a link to it?
 	<br /><br />
-        
-        For each article, you will be able to review
-        the links proposed by the tool, and perform the edit
-        with your Wikipedia account.
         </p>
 
         <div class="startbutton">
@@ -37,39 +33,23 @@
             <input type="submit" class="btn btn-success" value="{% if username %}Start editing a random page!{% else %}Log in{% endif %}" />
         </form>
         </div>
-
-        <p>You can also run the tool on a specific page of the English Wikipedia.</p>
-        <div class="row">
-            <form action="{{ url_for('process') }}" method="get" class="form-horizontal">
-                <div class="form-group">
-                    <div>
-                        <label for="name" class="control-label col-lg-1">Page title</label>
-                        <div class="controls col-lg-3">
-                        <div class="input-group">
-                            <input type="text" name="name" id="nameInput" value="{{ page_name }}" class="form-control" />
-                            <span class="input-group-btn">
-                                <input type="submit" value="See the proposed changes" class="btn btn-default" />
-                            </span>
-                        </div>
-                        </div>
-                    </div>
-                </div>
-            </form>
-        </div>
+       <br />
 
         <br />
-	<p>
-	<a href="https://en.wikipedia.org/w/index.php?title=Special:RecentChanges&tagfilter=OAuth+CID:+817">
-	Edits recently performed with this tool</a>.
-	</p>
+	
         <br/><br/>
     
-	<p><a href="https://github.com/dissemin/oabot">GitHub project</a> - 
-	   report issues and suggest improvements on <a href="https://phabricator.wikimedia.org/maniphest/task/edit/form/1/?projects=OABot">Phabricator</a> - 
-           run by <a href="https://en.wikipedia.org/wiki/User_talk:Pintoch">Pintoch</a> - 
-           brought to you by <a href="https://association.dissem.in/index.html.en">CAPSH</a> -
-           hosted on <a href="https://tools.wmflabs.org/">WMF Tool Labs</a>
+	<p><center><a href="https://github.com/dissemin/oabot">Code on GitHub</a> - 
+	    <a href="https://phabricator.wikimedia.org/maniphest/task/edit/form/1/?projects=OABot">Bugs on Phabricator</a> - 
+           Run by <a href="https://en.wikipedia.org/wiki/User_talk:Pintoch">Pintoch</a> - 
+           A<a href="https://association.dissem.in/index.html.en">CAPSH project</a> -
+		Hosted on <a href="https://tools.wmflabs.org/">WMF Tool Labs</a></center>
 	 </p>
+	    
+	<p><center>
+	<a href="https://en.wikipedia.org/w/index.php?title=Special:RecentChanges&tagfilter=OAuth+CID:+817">
+	 Recently edits made with OAbot</a>.</center>
+	</p>
     </body>
 </html>
 
