@@ -23,8 +23,17 @@
         </div>
 
         <h2>OAbot: <a href="https://en.wikipedia.org/wiki/{{ page_name }}">{{ page_name }}</a></h2>
-        <p>Processed: {{ utcnow }} (<a href="{{ url_for('process', name=page_name, refresh='true') }}">refresh</a>)</p>
 
+        <p>
+         <strong>How to decide?</strong> <br />
+         <ol>
+          <li>Is the original link closed access?</li>
+          <li>Is the new link free to read?</li>
+          <li>Do the two sources match?</li>
+          <li>Is the new link a copyright Infringement?</li>
+         </ol><br />
+        </p>
+ 
         {% if proposed_edits %}
         <h3>Citations</h3>
         <form id="edit-form" action="{{ url_for('perform_edit') }}" method="POST"> 
@@ -41,16 +50,7 @@
             </li>
         {% endfor %}
         </ol>
-        <p>
-         <h3>How to decide?</h3> <br />
-         <ol>
-          Is the original link closed access?
-          Is the new link free to read? 
-          Do the two sources match?
-          Is the new link a copyright Infringement?
-         <ol/><br />
-        <p/>
-            
+           
         <h3>Actions</h3>
         <p>
         <span class="btn-group">
