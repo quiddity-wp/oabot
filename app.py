@@ -342,6 +342,15 @@ def send_css(path):
 	with open('exception', 'w') as f:
 	    f.write(str(type(e))+' '+str(e))
 
+@app.route('/js/<path:path>')
+def send_js(path):
+    try:
+	    return flask.send_from_directory('js', path)
+    except Exception as e:
+	with open('exception', 'w') as f:
+	    f.write(str(type(e))+' '+str(e))
+
+
 @app.route('/edits/<path:path>')
 def send_edits(path):
     return flask.send_from_directory('edits', path)
