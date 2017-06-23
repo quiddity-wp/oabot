@@ -122,7 +122,7 @@ def process():
     return flask.render_template('change.html', **context)
 
 def to_cache_name(page_name):
-    safe_page_name = page_name.replace('/','#').replace(' ','_')
+    safe_page_name = page_name.replace('/','#').replace(' ','_').encode('utf-8')
     cache_fname = '%s.json' % safe_page_name
     return cache_fname
 
