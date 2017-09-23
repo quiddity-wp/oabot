@@ -10,3 +10,5 @@ pyyaml
 mwoauth
 requests_oauthlib
 sqlalchemy
+configparser
+mysql
