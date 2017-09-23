@@ -120,6 +120,12 @@ def process():
     page_name = flask.request.args.get('name')
     force = flask.request.args.get('refresh') == 'true'
     context =  get_proposed_edits(page_name, force)
+    username = flask.session.get('username', None)
+    nb_edits = 0
+    if username:
+        nb_edits = UserStats.get('en', username).nb_edits
+    context['username'] = username
+    context['nb_edits'] = nb_edits
     return flask.render_template('change.html', **context)
 
 def to_cache_name(page_name):

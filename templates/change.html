@@ -7,6 +7,12 @@
         <script src="{{ url_for('send_js', path='jquery-1.11.3.min.js') }}"></script>
     </head>
     <body>
+
+        <p class="loginsection">{% if username %}
+	    Logged in as <a href="https://en.wikipedia.org/wiki/User:{{ username }}">{{ username }}</a>
+	(<a href="{{ url_for('logout') }}">logout</a>).{% if nb_edits %}<br/>
+            <a href="{{ url_for('stats') }}">{{ nb_edits }} edits</a> made, thanks!{% endif %}{% endif %}</p>
+
         <h2><a href="{{ url_for('index') }}">OAbot</a></h2>
         <br/>
         <div class="row">
