@@ -1,0 +1,111 @@
+import sqlalchemy
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, Sequence
+from sqlalchemy.orm import sessionmaker
+from dbconfig import engine
+import requests
+
+Base = declarative_base()
+Session = sessionmaker(bind=engine)
+
+"""
+These user-stats can be synchronized with Wikipedia with the following SQL query on the replicas:
+
+SELECT COUNT(1) AS nb_edits, revision.rev_user_text
+FROM change_tag INNER JOIN revision ON change_tag.ct_rev_id = revision.rev_id
+WHERE change_tag.ct_tag = "OAuth CID: 817"
+GROUP BY revision.rev_user_text
+ORDER BY nb_edits;
+
+To connect to the enwiki replica:
+mysql --defaults-file=$HOME/replica.my.cnf -h enwiki.labsdb enwiki_p
+
+"""
+
+class UserStats(Base):
+    """
+    Database record which holds the number of user edits
+    """
+    __tablename__ = 'userstats'
+    id = Column(Integer, Sequence('userstats_id_seq'), primary_key=True)
+    wiki = Column(String)
+    user_name = Column(String)
+    nb_edits = Column(Integer)
+    nb_links = Column(Integer)
+
+    def __repr__(self):
+        return "<UserStats for %s: %d,%d>" % (self.user_name, self.nb_edits, self.nb_links)
+
+    @classmethod
+    def increment_user(cls, wiki, user_name, edits, links):
+        session = Session()
+
+        instance = session.query(cls).filter_by(wiki=wiki, user_name=user_name).first()
+        if not instance:
+            instance = cls(wiki=wiki, user_name=user_name, nb_edits=0, nb_links=0)
+            session.add(instance)
+
+        instance.nb_edits += edits
+        instance.nb_links += links
+        session.commit()
+
+
+    @classmethod
+    def get_leaderboard(cls):
+        session = Session()
+        stats = session.query(cls).filter(cls.nb_edits != 0).order_by(cls.nb_links)
+        return reversed(list(stats))
+
+    @classmethod
+    def sync_from_wikipedia(cls, wiki, dct):
+        session = Session()
+        for user, value in dct.items():
+            instance = session.query(cls).filter_by(wiki=wiki, user_name=user).first()
+            if not instance:
+                instance = cls(wiki=wiki, user_name=user, nb_edits=value, nb_links=value)
+                session.add(instance)
+            else:
+                instance.nb_edits = value
+                instance.nb_links = value
+        session.commit()
+
+    @classmethod
+    def get(cls, wiki, user):
+        session = Session()
+        instance = session.query(cls).filter_by(wiki=wiki, user_name=user).first()
+        if not instance:
+            instance = cls(wiki=wiki, user_name=user, nb_edits=0, nb_links=0)
+        return instance
+
+if __name__ == '__main__':
+    Base.metadata.create_all(engine)
+    dct = {
+    'Zuphilip': 1,
+    'Stefan Weil': 1,
+    'Ocaasi': 1,
+    'Saung Tadashi': 1,
+    'Slaporte': 1,
+    'MartinPoulter': 1,
+    'Shizhao': 1,
+    'Samwalton9': 2,
+    'DatGuy': 2,
+    'Aarontay': 2,
+    'Jakob.scholbach': 3,
+    'Harej': 3,
+    'HenriqueCrang': 3,
+    'Gamaliel': 3,
+    'Headbomb': 5,
+    'CristianCantoro': 5,
+    'Sadads': 10,
+    'Waldir': 11,
+    'Jarble': 11,
+    'Josve05a': 12,
+    'Nihlus Kryik': 19,
+    'Pintoch': 25,
+    'A3nm': 38,
+    'Lauren maggio': 40,
+    'Nemo bis': 241,
+    }
+    UserStats.sync_from_wikipedia('en', dct)
+    for user in UserStats.get_leaderboard():
+        print(user)

@@ -9,3 +9,4 @@ flask
 pyyaml
 mwoauth
 requests_oauthlib
+sqlalchemy
