@@ -39,6 +39,7 @@ import mwparserfromhell
 import main
 from difflib import HtmlDiff
 import wikirender
+from userstats import UserStats
 
 import urllib3
 import urllib3.contrib.pyopenssl
@@ -232,6 +233,10 @@ def perform_edit():
     # Save the page
     if change_made:
         edit_wiki_page(page_name, new_text, summary)
+        UserStats.increment_user(
+            'en',
+            flask.session.get('username', None),
+            1, 0)
 
         # Remove the cache
         cache_fname = "cache/"+to_cache_name(page_name)
@@ -274,6 +279,18 @@ def preview_edit():
     diff = make_diff(text, new_text)
     return '<div class="diffcontainer">'+diff+'</div>'
     
+@app.route('/stats')
+def stats():
+    leaderboard = list(UserStats.get_leaderboard())
+    total_edits = sum(rec.nb_edits for rec in leaderboard)
+    context = {
+        'username' : flask.session.get('username', None),
+        'leaderboard': UserStats.get_leaderboard(),
+        'total_edits': total_edits,
+    }
+    return flask.render_template("stats.html", **context)
+
+
 
 @app.route('/login')
 def login():

@@ -11,43 +11,29 @@
 	(<a href="{{ url_for('logout') }}">logout</a>).{% endif %}</p>
 
 
-        <h2>OAbot</h2>
-        {% if success == 'true' %}
-        <div class="success">
-            Edit successfully performed
-        </div>
-        {% elif success == 'nothing' %}
-        <div class="success">
-            No edit was made
-        </div>
-        {% endif %}
-        <br />
+        <h2><a href="{{ url_for('index') }}">OAbot</a>: leaderboard</h2>
 
-        <p id="description">
-        We think we've found an open access version of an article cited on Wikipedia! 
-	<br />
-	Can you review our guess and edit Wikipedia to include a link to it?
-	<br /><br />
-        </p>
+        <p>Total number of edits made with OAbot: {{ total_edits }}</p>
 
-        <div class="startbutton">
-        <form action="{{ url_for('get_random_page') }}">
-            <input type="submit" class="btn btn-success" value="{% if username %}Start editing a random page!{% else %}Log in{% endif %}" />
-        </form>
-        </div>
+        <table>
+          <tr>
+              <th>User</th>
+              <th>Number of edits</th>
+          </tr>
+         {% for record in leaderboard %}
+          <tr>
+              <td><a href="https://en.wikipedia.org/wiki/User:{{ record.user_name }}">{{ record.user_name }}</a></td>
+              <td>{{ record.nb_edits }}</td>
+          </tr>
+          {% endfor %}
+         </table>
+
        <br />
 
         <br />
 	
         <br/><br/>
-
- 	<p><center>
-	<a href="https://en.wikipedia.org/w/index.php?title=Special:RecentChanges&tagfilter=OAuth+CID:+817">
-	 Recent edits made with OAbot</a> - 
-        <a href="{{ url_for('stats') }}">Leaderboard</a>
-        </center>
-	</p>
-   
+    
 	<p><center><a href="https://github.com/dissemin/oabot">Code on GitHub</a> - 
 	   	 <a href="https://phabricator.wikimedia.org/maniphest/task/edit/form/1/?projects=OABot">Bugs on Phabricator</a> - 
            	<a href="https://en.wikipedia.org/wiki/User_talk:Pintoch">Run by Pintoch</a> - 
@@ -55,6 +41,10 @@
 		<a href="https://tools.wmflabs.org/">Hosted on WMF Tool Labs</a></center>
 	 </p>
 	    
+	<p><center>
+	<a href="https://en.wikipedia.org/w/index.php?title=Special:RecentChanges&tagfilter=OAuth+CID:+817">
+	 Recent edits made with OAbot</a></center>
+	</p>
     </body>
 </html>
 
