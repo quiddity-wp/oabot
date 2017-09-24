@@ -46,7 +46,7 @@ class TemplateEdit(object):
 	self.proposed_change = ''
         self.proposed_link = None
         self.index = None
-    
+
     def json(self):
         return {
             'orig_string': self.orig_string,
@@ -67,7 +67,7 @@ class TemplateEdit(object):
         if not reference or tpl_name in excluded_templates:
 	    self.classification = 'ignored'
             return
-	
+
         sys.stdout.write('.')
         sys.stdout.flush()
 
@@ -139,7 +139,7 @@ class TemplateEdit(object):
             else:
                 self.proposed_change = '%s=%s' % (argmap.name,match)
             break
-    
+
     def update_template(self, change):
         """
         Given a change of the form "param=value", add it to the template
@@ -175,7 +175,21 @@ def get_oa_link(reference):
         'date':date,
         'doi':doi,
         }
-    req = requests.post('http://old.dissem.in/api/query',
+    print('args')
+    print(args)
+
+    # first, try OAdoi
+    if doi:
+        email = '{}@{}.in'.format('contact', 'dissem')
+        req = requests.get('https://api.oadoi.org/v2/:{}'.format(doi), {'email':email})
+        print(req.url)
+        resp = req.json()
+        loc = resp.get('best_oa_location', {}).get('url')
+        if loc:
+            return loc
+
+    # then, try dissemin
+    req = requests.post('https://dissem.in/api/query',
                         json=args,
                         headers={'User-Agent':OABOT_USER_AGENT})
 
@@ -188,6 +202,11 @@ def get_oa_link(reference):
     # if it is free to read.
     paper_object = resp.get('paper', {})
     dissemin_pdf_url = paper_object.get('pdf_url')
+
+    return dissemin_pdf_url
+
+    # if we want more accurate (but slower) results
+    # we can check availability manually:
 
     oa_url = None
     candidate_urls = sort_links([
