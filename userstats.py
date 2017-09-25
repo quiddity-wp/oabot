@@ -28,8 +28,8 @@ class UserStats(Base):
     """
     __tablename__ = 'userstats'
     id = Column(Integer, Sequence('userstats_id_seq'), primary_key=True)
-    wiki = Column(String)
-    user_name = Column(String)
+    wiki = Column(String(32))
+    user_name = Column(String(128))
     nb_edits = Column(Integer)
     nb_links = Column(Integer)
 
