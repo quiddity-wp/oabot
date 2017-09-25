@@ -184,7 +184,7 @@ def get_oa_link(reference):
         req = requests.get('https://api.oadoi.org/v2/:{}'.format(doi), {'email':email})
         print(req.url)
         resp = req.json()
-        loc = resp.get('best_oa_location', {}).get('url')
+        loc = (resp.get('best_oa_location') or {}).get('url')
         if loc:
             return loc
 
@@ -203,7 +203,7 @@ def get_oa_link(reference):
     paper_object = resp.get('paper', {})
     dissemin_pdf_url = paper_object.get('pdf_url')
 
-    return dissemin_pdf_url
+    # return dissemin_pdf_url
 
     # if we want more accurate (but slower) results
     # we can check availability manually:
