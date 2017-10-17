@@ -1,19 +1,18 @@
 <!doctype html>
 <html>
     <head>
-        <title><A HREF="http://www.oabot.org"><img src="oabot_orange_text_above.svg" alt="OAbot logo with one closed and one open lock" WIDTH="100px" HEIGHT="100px"></A> OAbot: {{ page_name }}</title>
+        <title> OAbot: {{ page_name }}</title>
         <link rel="stylesheet" href="{{ url_for('send_css', path='style.css') }}" />
         <link rel="stylesheet" href="{{ url_for('send_css', path='bootstrap.min.css') }}" />
         <script src="{{ url_for('send_js', path='jquery-1.11.3.min.js') }}"></script>
     </head>
     <body>
-
         <p class="loginsection">{% if username %}
 	    Logged in as <a href="https://en.wikipedia.org/wiki/User:{{ username }}">{{ username }}</a>
 	(<a href="{{ url_for('logout') }}">logout</a>).{% if nb_edits %}<br/>
             <a href="{{ url_for('stats') }}">{{ nb_edits }} edits</a> made, thanks!{% endif %}{% endif %}</p>
 
-        <h2><a href="{{ url_for('index') }}">OAbot</a></h2>
+        <A HREF="http://www.oabot.org"><img src="css/oabot_orange_text_above.svg" alt="OAbot" WIDTH="100px" HEIGHT="100px"></A>
         <br/>
         <div class="row">
             <form action="{{ url_for('process') }}" method="get">
@@ -83,6 +82,8 @@
         {% endif %}
 
         <p><a href="{{ url_for('index') }}">&#8592; Home</a></p>
+        
+        <p><center>Logo CC BY SA Doug Dworkin</center></p>
     </body>
 </html>
 
