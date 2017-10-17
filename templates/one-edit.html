@@ -13,7 +13,7 @@
 	(<a href="{{ url_for('logout') }}">logout</a>).{% if nb_edits %}<br/>
             <a href="{{ url_for('stats') }}">{{ nb_edits }} edits</a> made, thanks!{% endif %}{% endif %}</p>
 
-        <h2><a href="{{ url_for('index') }}">OAbot</a></h2>
+        <A HREF="http://www.oabot.org"><img src="css/oabot_orange_text_above.svg" alt="OAbot" WIDTH="100px" HEIGHT="100px"></A>
         <br/>
         <div class="row">
             <form action="{{ url_for('process') }}" method="get">
@@ -77,6 +77,8 @@
         {% endif %}
 
         <p><a href="{{ url_for('index') }}">&#8592; Home</a></p>
+
+        <p><center>Logo CC BY SA Doug Dworkin</center></p>
     </body>
 </html>
 
