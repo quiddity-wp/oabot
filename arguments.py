@@ -6,7 +6,7 @@ import re
 # helper
 def get_value(template, param):
     if template.has(param, ignore_empty=True):
-	return unicode(template.get(param).value)
+	return unicode(template.get(param).value).strip()
 
 ##############
 # Edit logic #
@@ -32,6 +32,7 @@ class ArgumentMapping(object):
         self.alternate_names = alternate_names
         self.group_id = group_id
 	self.always_free = always_free
+        self.custom_access = custom_access
 
     def get(self, template):
         """
@@ -60,7 +61,11 @@ class ArgumentMapping(object):
             return s.strip() if s else None
         return (
                 self.present(template) and
-                    self.always_free
+                   ( self.always_free
+                    or
+                   ( self.custom_access and
+                    get_value(template, self.name+'-access') == 'free')
+                    )
                 )
 
 

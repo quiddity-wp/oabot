@@ -53,7 +53,7 @@ class UserStats(Base):
     @classmethod
     def get_leaderboard(cls):
         session = Session()
-        stats = session.query(cls).filter(cls.nb_edits != 0).order_by(cls.nb_links)
+        stats = session.query(cls).filter(cls.nb_edits != 0).order_by(cls.nb_edits)
         return reversed(list(stats))
 
     @classmethod

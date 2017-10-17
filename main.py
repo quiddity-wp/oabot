@@ -31,7 +31,7 @@ class TemplateEdit(object):
     This represents a proposed change (possibly empty)
     on a citation template
     """
-    def __init__(self, tpl):
+    def __init__(self, tpl, page):
 	"""
 	:param tpl: a mwparserfromhell template: the original template
 		that we want to change
@@ -46,6 +46,7 @@ class TemplateEdit(object):
 	self.proposed_change = ''
         self.proposed_link = None
         self.index = None
+        self.page = page
 
     def json(self):
         return {
@@ -178,17 +179,10 @@ def get_oa_link(reference):
     print('args')
     print(args)
 
-    # first, try OAdoi
-    if doi:
-        email = '{}@{}.in'.format('contact', 'dissem')
-        req = requests.get('https://api.oadoi.org/v2/:{}'.format(doi), {'email':email})
-        print(req.url)
-        resp = req.json()
-        loc = (resp.get('best_oa_location') or {}).get('url')
-        if loc:
-            return loc
-
-    # then, try dissemin
+    # first, try dissemin
+    # (rationale: dissemin returns links that are easier
+    # to convert to identifiers (DOI, HDL) so it gives cleaner
+    # template outputs)
     req = requests.post('https://dissem.in/api/query',
                         json=args,
                         headers={'User-Agent':OABOT_USER_AGENT})
@@ -218,6 +212,19 @@ def get_oa_link(reference):
         if is_free:
             # If we found a free URL, we are happy!
 	    return url
+
+    # then, try OAdoi
+    # (OAdoi finds full texts that dissemin does not, so it's always good to have!)
+    if doi:
+        email = '{}@{}.in'.format('contact', 'dissem')
+        req = requests.get('https://api.oadoi.org/v2/:{}'.format(doi), {'email':email})
+        print(req.url)
+        resp = req.json()
+        best_oa = (resp.get('best_oa_location') or {})
+        if best_oa.get('host_type') == 'publisher':
+            return None
+        if best_oa.get('url'):
+            return best_oa['url']
 
 @urls_cache.cached
 def check_free_to_read(url):
@@ -260,7 +267,7 @@ def check_free_to_read(url):
     return False
 
 
-def add_oa_links_in_references(text):
+def add_oa_links_in_references(text, page):
     """
     Main function of the bot.
 
@@ -271,7 +278,7 @@ def add_oa_links_in_references(text):
     wikicode = mwparserfromhell.parse(text)
 
     for index, template in enumerate(wikicode.filter_templates()):
-        edit = TemplateEdit(template)
+        edit = TemplateEdit(template, page)
         edit.index = index
         edit.propose_change()
         yield edit

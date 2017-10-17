@@ -128,6 +128,20 @@ def process():
     context['nb_edits'] = nb_edits
     return flask.render_template('change.html', **context)
 
+@app.route('/review-edit')
+def review_one_edit():
+    page_name = flask.request.args.get('name')
+    orig_hash = flask.request.args.get('edit')
+    context =  get_one_proposed_edit(page_name, orig_hash)
+    username = flask.session.get('username', None)
+    nb_edits = 0
+    if username:
+        nb_edits = UserStats.get('en', username).nb_edits
+    context['username'] = username
+    context['nb_edits'] = nb_edits
+    return flask.render_template('one-edit.html', **context)
+
+
 def to_cache_name(page_name):
     safe_page_name = page_name.replace('/','#').replace(' ','_').encode('utf-8')
     cache_fname = '%s.json' % safe_page_name
@@ -144,20 +158,31 @@ def refresh_whole_cache():
     for page_name in list_cache_contents():
         get_proposed_edits(page_name, True)
 
-@app.route('/get-random-page')
-def get_random_page():
+@app.route('/get-random-edit')
+def get_random_edit():
     # Check first that we are logged in
     access_token =flask.session.get('access_token', None)
     if not access_token:
-        return flask.redirect(flask.url_for('login', next_url=flask.url_for('get_random_page')))
+        return flask.redirect(flask.url_for('login', next_url=flask.url_for('get_random_edit')))
 
     # Then, redirect to a random cached edit
     cached_pages = list_cache_contents()
     if not cached_pages:
         return flask.redirect(flask.url_for('index'))
     idx = randint(0,len(cached_pages)-1)
-    return flask.redirect(
-        flask.url_for('process', name=cached_pages[idx]))
+    page_name = cached_pages[idx]
+    cache_fname = "cache/"+to_cache_name(page_name)
+    with open(cache_fname, 'r') as f:
+        page_json = json.load(f)
+
+    proposed_edits = page_json.get('proposed_edits', [])
+    if proposed_edits:
+        edit_idx = randint(0, len(proposed_edits)-1)
+        orig_hash = proposed_edits[edit_idx]['orig_hash']
+        return flask.redirect(
+            flask.url_for('review_one_edit', name=cached_pages[idx], edit=orig_hash))
+
+    return flask.redirect(flask.url_for('index'))
 
 redirect_re = re.compile(r'#REDIRECT *\[\[(.*)\]\]')
 
@@ -177,7 +202,7 @@ def get_proposed_edits(page_name, force, follow_redirects=True):
             return json.load(f)
     
     # Otherwise, process it
-    all_templates = main.add_oa_links_in_references(text)
+    all_templates = main.add_oa_links_in_references(text, page_name)
     filtered = list(filter(lambda e: e.proposed_change, all_templates))
     context = {
 	'proposed_edits': [change.json() for change in filtered],
@@ -194,11 +219,18 @@ def get_proposed_edits(page_name, force, follow_redirects=True):
     
     return context
 
-def make_new_wikicode(text, form_data):
+def get_one_proposed_edit(page_name, edit_hash):
+    context = get_proposed_edits(page_name, False, True)
+    for edit in context['proposed_edits']:
+        if edit['orig_hash'] == edit_hash:
+            context['proposed_edit'] = edit
+    return context
+
+def make_new_wikicode(text, form_data, page_name):
     wikicode = mwparserfromhell.parse(text)
     change_made = False
     for template in wikicode.filter_templates():
-        edit = main.TemplateEdit(template)
+        edit = main.TemplateEdit(template, page_name)
         if edit.classification == 'ignored':
             continue
         proposed_addition = form_data.get(edit.orig_hash)
@@ -234,7 +266,7 @@ def perform_edit():
     text = main.get_page_over_api(page_name)
     
     # Perform each edit
-    new_text, change_made = make_new_wikicode(text, data)
+    new_text, change_made = make_new_wikicode(text, data, page_name)
 
     # Save the page
     if change_made:
@@ -242,14 +274,14 @@ def perform_edit():
         UserStats.increment_user(
             'en',
             flask.session.get('username', None),
-            1, 0)
+            1, 1)
 
         # Remove the cache
         cache_fname = "cache/"+to_cache_name(page_name)
         if os.path.isfile(cache_fname):
             os.remove(cache_fname)
 
-        return flask.redirect(flask.url_for('get_random_page'))
+        return flask.redirect(flask.url_for('get_random_edit'))
     else:
         return flask.redirect(flask.url_for('index', success='nothing'))
 
@@ -280,7 +312,7 @@ def preview_edit():
     text = main.get_page_over_api(page_name)
     
     # Perform each edit
-    new_text, change_made = make_new_wikicode(text, data)
+    new_text, change_made = make_new_wikicode(text, data, page_name)
 
     diff = make_diff(text, new_text)
     return '<div class="diffcontainer">'+diff+'</div>'
@@ -347,7 +379,7 @@ def oauth_callback():
             access_token._fields, access_token))
         flask.session['username'] = identity['username']
 
-    next_url = flask.request.args.get('next_url') or flask.url_for('get_random_page')
+    next_url = flask.request.args.get('next_url') or flask.url_for('get_random_edit')
     return flask.redirect(next_url)
 
 
