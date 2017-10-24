@@ -2,11 +2,12 @@ import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, Sequence
 from sqlalchemy.orm import sessionmaker
-from dbconfig import engine
+from dbconfig import get_engine
 import requests
 
 Base = declarative_base()
-Session = sessionmaker(bind=engine)
+def get_session():
+     return sessionmaker(bind=get_engine())
 
 """
 These user-stats can be synchronized with Wikipedia with the following SQL query on the replicas:
@@ -38,7 +39,7 @@ class UserStats(Base):
 
     @classmethod
     def increment_user(cls, wiki, user_name, edits, links):
-        session = Session()
+        session = get_session()()
 
         instance = session.query(cls).filter_by(wiki=wiki, user_name=user_name).first()
         if not instance:
@@ -52,13 +53,13 @@ class UserStats(Base):
 
     @classmethod
     def get_leaderboard(cls):
-        session = Session()
+        session = get_session()()
         stats = session.query(cls).filter(cls.nb_edits != 0).order_by(cls.nb_edits)
         return reversed(list(stats))
 
     @classmethod
     def sync_from_wikipedia(cls, wiki, dct):
-        session = Session()
+        session = get_session()()
         for user, value in dct.items():
             instance = session.query(cls).filter_by(wiki=wiki, user_name=user).first()
             if not instance:
@@ -71,7 +72,7 @@ class UserStats(Base):
 
     @classmethod
     def get(cls, wiki, user):
-        session = Session()
+        session = get_session()()
         instance = session.query(cls).filter_by(wiki=wiki, user_name=user).first()
         if not instance:
             instance = cls(wiki=wiki, user_name=user, nb_edits=0, nb_links=0)

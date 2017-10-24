@@ -143,7 +143,9 @@ def review_one_edit():
 
 
 def to_cache_name(page_name):
-    safe_page_name = page_name.replace('/','#').replace(' ','_').encode('utf-8')
+    safe_page_name = page_name.replace('/','#').replace(' ','_')
+    if type(safe_page_name) == unicode:
+        safe_page_name = safe_page_name.encode('utf-8')
     cache_fname = '%s.json' % safe_page_name
     return cache_fname
 
